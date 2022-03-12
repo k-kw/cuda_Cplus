@@ -4,7 +4,7 @@
 #include <cufft.h>
 #include <cuda_runtime.h>
 
-#include "my_all.h"
+//#include "my_all.h"
 #include "Bmp_class_dll.h"
 #include "complex_array_class_dll.h"
 
@@ -172,8 +172,8 @@ void kaku(double* Re, double* Im, int x, int y, double* out)
 	Opad(ImG, x, y, Im);
 
 	cufftComplex* host;
-	cudaMalloc((void**)&host, sizeof(cufftComplex) * x * y * 4);
-	/*host = (cufftComplex*)malloc(sizeof(cufftComplex) * x * y * 4);*/
+	//cudaMalloc((void**)&host, sizeof(cufftComplex) * x * y * 4);
+	host = (cufftComplex*)malloc(sizeof(cufftComplex) * x * y * 4);
 	set_cufftcomplex(host, ReG, ImG, x * y * 4);
 
 	cufftComplex* dev;
@@ -202,7 +202,28 @@ void kaku(double* Re, double* Im, int x, int y, double* out)
 int main(void) {
 	My_Bmp* img;
 	img = new My_Bmp(SX, SY);
+	img->img_read(impath);
 
+	My_ComArray_2D* com;
+	com = new My_ComArray_2D(SX * SY, SX, SY);
+
+	img->ucimg_to_double(com->Re);
+
+
+
+	double* out;
+	out = new double[4 * SX * SY];
+
+	kaku(com->Re, com->Im, SX, SY, out);
+
+	My_Bmp* img2;
+	img2 = new My_Bmp(SX*2, SY*2);
+	img2->data_to_ucimg(out);
+	img2->img_write(ompath);
+
+
+	delete[] out;
+	delete com;
 	delete img;
 	return 0;
 }
