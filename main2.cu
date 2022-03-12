@@ -98,7 +98,7 @@ __global__ void pad(double* out, int x, int y, double* in)
 {
 	int X = 2 * x;
 	int Y = 2 * y;
-	
+
 	//入力された画像データを０埋めして倍の大きさの画像にする
 	for (int i = Y / 4; i < y + Y / 4; i++) {
 		for (int j = X / 4; j < x + X / 4; j++) {
@@ -110,105 +110,99 @@ __global__ void pad(double* out, int x, int y, double* in)
 
 
 
-void kaku(double* dev2, double* dev)
+
+
+
+
+
+//2D画像の0pad関数(縦横それぞれ２倍にして0埋め、inとoutはサイズ違う)
+void Opad(double* img_out, int in_x, int in_y, double* img_in) {
+	int x, y, X, Y;
+	x = in_x;
+	y = in_y;
+	X = 2 * x;
+	Y = 2 * y;
+
+	double* img_tmp;
+	img_tmp = new double[X * Y];
+
+	for (int i = 0; i < X * Y; i++) {
+		img_tmp[i] = 0;
+	}
+
+	//入力された画像データを０埋めして倍の大きさの画像にする
+	for (int i = Y / 4; i < y + Y / 4; i++) {
+		for (int j = X / 4; j < x + X / 4; j++) {
+			img_tmp[i * X + j] = img_in[(i - Y / 4) * x + (j - X / 4)];
+		}
+	}
+
+	for (int i = 0; i < X * Y; i++) {
+		img_out[i] = img_tmp[i];
+	}
+
+	delete[]img_tmp;
+
+}
+
+void fft_2D_cuda_dev(int x, int y, cufftComplex* dev)
 {
-	dim3 grid(1, 1);
-	dim3 block(1, 1);
-	pad << <grid, block >> > (dev2, SX, SY, dev);
+	cufftHandle plan;
+	cufftPlan2d(&plan, x, y, CUFFT_C2C);
+	cufftExecC2C(plan, dev, dev, CUFFT_INVERSE);
+	cufftDestroy(plan);
 }
 
 
+void ifft_2D_cuda_dev(int x, int y, cufftComplex* dev)
+{
+	cufftHandle plan;
+	cufftPlan2d(&plan, x, y, CUFFT_C2C);
+	cufftExecC2C(plan, dev, dev, CUFFT_INVERSE);
+	cufftDestroy(plan);
+}
+
+void kaku(double* Re, double* Im, int x, int y, double* out)
+{
+	double* ReG, * ImG;
+	ReG = new double[4 * x * y];
+	ImG = new double[4 * x * y];
+
+	Opad(ReG, x, y, Re);
+	Opad(ImG, x, y, Im);
+
+	cufftComplex* host;
+	cudaMalloc((void**)&host, sizeof(cufftComplex) * x * y * 4);
+	/*host = (cufftComplex*)malloc(sizeof(cufftComplex) * x * y * 4);*/
+	set_cufftcomplex(host, ReG, ImG, x * y * 4);
+
+	cufftComplex* dev;
+	cudaMalloc((void**)&dev, sizeof(cufftComplex) * x * y * 4);
+	cudaMemcpy(dev, host, sizeof(cufftComplex) * x * y * 4, cudaMemcpyHostToDevice);
+
+
+	fft_2D_cuda_dev(2 * x, 2 * y, dev);
+
+	ifft_2D_cuda_dev(2 * x, 2 * y, dev);
+
+
+	cudaMemcpy(host, dev, sizeof(cufftComplex) * x * y * 4, cudaMemcpyDeviceToHost);
+
+
+	for (int i = 0; i < x * y * 4; i++) {
+		out[i] = (double)sqrt(sqr(cuCrealf(host[i])) + sqr(cuCimagf(host[i])));
+	}
+
+	cudaFree(host);
+	cudaFree(dev);
+	delete[]ReG;
+	delete[]ImG;
+}
+
 int main(void) {
-	/*cv::Mat inimg = cv::imread(impath);
-	cv::imshow("lena", inimg);
+	My_Bmp* img;
+	img = new My_Bmp(SX, SY);
 
-
-	memcpy(padRe, bin_mat_pjr.data, PJRSX * PJRSY * sizeof(unsigned char));
-	bin_mat_pjr.release();
-
-
-
-
-	cv::Mat outimg;
-	cvtColor(inimg, outimg, COLOR_BGR2GRAY);
-
-
-	cv::waitKey(0);
-	cv::imwrite(ompath, outimg);*/
-
-
-    //入力画像を読みこみ
-	My_Bmp* inimg;
-	inimg = new My_Bmp(SX, SY);
-
-	inimg->img_read(impath);
-
-	////画像から複素配列に移動
-	//My_ComArray_2D* com;
-	//com = new My_ComArray_2D(SX * SY, SX, SY);
-
-	//inimg->ucimg_to_double(com->Re);
-
-	////ホストメモリを確保
-	//cufftComplex* host;
-	//host = (cufftComplex*)malloc(sizeof(cufftComplex) * SX * SY);
-	////複素配列の実部をセット
-	//set_Re_cufftcomplex(host, com->Re, SX * SY);
-
-	double* host;
-	host = (double*)malloc(sizeof(double) * SX * SY);
-
-	inimg->ucimg_to_double(host);
-
-
-	double* dev;
-	cudaMalloc((void**)&dev, sizeof(double) * SX * SY);
-	cudaMemcpy(dev, host, sizeof(double) * SX * SY, cudaMemcpyHostToDevice);
-
-
-	//cout << host[0];
-
-	double* host2;
-	host2 = (double*)malloc(sizeof(double) * SX * SY * 4);
-	cudaMemset(host2, 0, sizeof(double) * SX * SY * 4);
-
-	double* dev2;
-	cudaMalloc((void**)&dev2, sizeof(double) * SX * SY *4);
-	cudaMemcpy(dev2, host2, sizeof(double) * SX * SY * 4, cudaMemcpyHostToDevice);
-
-	
-	kaku(dev2, dev);
-
-
-	////FFT
-	//fft_2D_cuda(SX, SY, host);
-
-	////IFFT
-	//ifft_2D_cuda(SX, SY, host);
-
-
-	
-	
-	/*for (int i = 0; i < SX * SY; i++) {
-		com->Re[i] = (double)sqrt(sqr(cuCrealf(host[i])) + sqr(cuCimagf(host[i])));
-	}*/
-
-
-	cudaMemcpy(host2, dev2, sizeof(double) * 4 * SX * SY, cudaMemcpyDeviceToHost);
-
-	
-	//cout << host2[500000];
-
-
-	My_Bmp* outimg;
-	outimg = new My_Bmp(SX * 2, SY * 2);
-
-	outimg->data_to_ucimg(host2);
-	outimg->img_write(ompath);
-
-	delete inimg;
-	//delete com;
-	delete outimg;
-	free(host);
+	delete img;
 	return 0;
 }

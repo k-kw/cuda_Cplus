@@ -21,6 +21,48 @@
 #define SX 512
 #define SY 512
 
+__global__ void mulcom(double* Reo, double* Imo, double* Re1, double* Im1, double* Re2, double* Im2)
+{
+	int idx = blockIdx.x * blockDim.x + threadIdx.x;
+	Reo[idx] = Re1[idx] * Re2[idx] - Im1[idx] * Im2[idx];
+	Imo[idx] = Re1[idx] * Im2[idx] + Im1[idx] * Re2[idx];
+
+}
+
+int main() {
+	double* host;
+	cudaMalloc((void**)&host, sizeof(double) * x * y);
+
+
+	return 0;
+}
+
+
+
+
+#define _USE_MATH_DEFINES
+#include <cmath>
+#include <time.h>
+#include <cufft.h>
+#include <cuda_runtime.h>
+
+#include "my_all.h"
+#include "Bmp_class_dll.h"
+#include "complex_array_class_dll.h"
+
+#include <opencv2//opencv.hpp>
+#include <iostream>
+#include <fstream>
+#include <string>
+
+#ifndef __CUDACC__
+#define __CUDACC__
+#endif 
+
+#define sqr(x) ((x)*(x))
+#define SX 512
+#define SY 512
+
 
 //追加の依存ファイル設定の代わり
 //opencvはDLLのPATHを通して動的リンクライブラリ(暗黙的リンク)として
@@ -94,29 +136,6 @@ void ifft_2D_cuda(int x, int y, cufftComplex* host) {
 	cufftDestroy(plan);
 }
 
-__global__ void pad(double* out, int x, int y, double* in)
-{
-	int X = 2 * x;
-	int Y = 2 * y;
-	
-	//入力された画像データを０埋めして倍の大きさの画像にする
-	for (int i = Y / 4; i < y + Y / 4; i++) {
-		for (int j = X / 4; j < x + X / 4; j++) {
-			out[i * X + j] = in[(i - Y / 4) * x + (j - X / 4)];
-		}
-	}
-}
-
-
-
-
-void kaku(double* dev2, double* dev)
-{
-	dim3 grid(1, 1);
-	dim3 block(1, 1);
-	pad << <grid, block >> > (dev2, SX, SY, dev);
-}
-
 
 int main(void) {
 	/*cv::Mat inimg = cv::imread(impath);
@@ -137,77 +156,52 @@ int main(void) {
 	cv::imwrite(ompath, outimg);*/
 
 
-    //入力画像を読みこみ
+	//入力画像を読みこみ
 	My_Bmp* inimg;
 	inimg = new My_Bmp(SX, SY);
 
 	inimg->img_read(impath);
 
-	////画像から複素配列に移動
-	//My_ComArray_2D* com;
-	//com = new My_ComArray_2D(SX * SY, SX, SY);
+	//画像から複素配列に移動
+	My_ComArray_2D* com;
+	com = new My_ComArray_2D(SX * SY, SX, SY);
 
-	//inimg->ucimg_to_double(com->Re);
+	inimg->ucimg_to_double(com->Re);
 
-	////ホストメモリを確保
-	//cufftComplex* host;
-	//host = (cufftComplex*)malloc(sizeof(cufftComplex) * SX * SY);
-	////複素配列の実部をセット
-	//set_Re_cufftcomplex(host, com->Re, SX * SY);
-
-	double* host;
-	host = (double*)malloc(sizeof(double) * SX * SY);
-
-	inimg->ucimg_to_double(host);
+	//ホストメモリを確保
+	cufftComplex* host;
+	host = (cufftComplex*)malloc(sizeof(cufftComplex) * SX * SY);
+	//複素配列の実部をセット
+	set_Re_cufftcomplex(host, com->Re, SX * SY);
 
 
-	double* dev;
-	cudaMalloc((void**)&dev, sizeof(double) * SX * SY);
-	cudaMemcpy(dev, host, sizeof(double) * SX * SY, cudaMemcpyHostToDevice);
+	//FFT
+	fft_2D_cuda(SX, SY, host);
+
+	//IFFT
+	ifft_2D_cuda(SX, SY, host);
 
 
-	//cout << host[0];
-
-	double* host2;
-	host2 = (double*)malloc(sizeof(double) * SX * SY * 4);
-	cudaMemset(host2, 0, sizeof(double) * SX * SY * 4);
-
-	double* dev2;
-	cudaMalloc((void**)&dev2, sizeof(double) * SX * SY *4);
-	cudaMemcpy(dev2, host2, sizeof(double) * SX * SY * 4, cudaMemcpyHostToDevice);
-
-	
-	kaku(dev2, dev);
 
 
-	////FFT
-	//fft_2D_cuda(SX, SY, host);
-
-	////IFFT
-	//ifft_2D_cuda(SX, SY, host);
-
-
-	
-	
-	/*for (int i = 0; i < SX * SY; i++) {
+	for (int i = 0; i < SX * SY; i++) {
 		com->Re[i] = (double)sqrt(sqr(cuCrealf(host[i])) + sqr(cuCimagf(host[i])));
-	}*/
+	}
 
 
-	cudaMemcpy(host2, dev2, sizeof(double) * 4 * SX * SY, cudaMemcpyDeviceToHost);
 
-	
-	//cout << host2[500000];
+
+
 
 
 	My_Bmp* outimg;
-	outimg = new My_Bmp(SX * 2, SY * 2);
+	outimg = new My_Bmp(SX, SY);
 
-	outimg->data_to_ucimg(host2);
+	outimg->data_to_ucimg(com->Re);
 	outimg->img_write(ompath);
 
 	delete inimg;
-	//delete com;
+	delete com;
 	delete outimg;
 	free(host);
 	return 0;
