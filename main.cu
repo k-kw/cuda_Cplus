@@ -170,7 +170,7 @@ int main(void) {
 
 	double* host2;
 	host2 = (double*)malloc(sizeof(double) * SX * SY * 4);
-	cudaMemset(host2, 0, sizeof(double) * SX * SY * 4);
+	memset(host2, 0, sizeof(double) * SX * SY * 4);
 
 	double* dev2;
 	cudaMalloc((void**)&dev2, sizeof(double) * SX * SY *4);
