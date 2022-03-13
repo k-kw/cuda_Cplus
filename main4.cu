@@ -248,83 +248,119 @@ void elim(My_ComArray_2D* in, int ix, int iy, My_ComArray_2D* out) {
 }
 
 
-void Hdouble(double d, double lam, double z, My_ComArray_2D* H, int x, int y)
+__global__ void Hdouble(double* Re, double* Im, double d, double lam, double z, int x, int y)
 {
 	double u = 1 / ((double)x * d), v = 1 / ((double)y * d);
-	//HŒvŽZ
-	for (int i = 0; i < y; i++) {
-		for (int j = 0; j < x; j++) {
 
+	////HŒvŽZ
+	//for (int i = 0; i < y; i++) {
+	//	for (int j = 0; j < x; j++) {
+	//		H->Re[i * x + j] = cos(2 * M_PI * z * sqrt((1 / lam) * (1 / lam) - (u * ((double)j - x / 2)) * (u * ((double)j - x / 2)) - (v * ((double)i - y / 2)) * (v * ((double)i - y / 2))));
+	//		H->Im[i * x + j] = sin(2 * M_PI * z * sqrt((1 / lam) * (1 / lam) - (u * ((double)j - x / 2)) * (u * ((double)j - x / 2)) - (v * ((double)i - y / 2)) * (v * ((double)i - y / 2))));
+	//	}
+	//}
 
-			H->Re[i * x + j] = cos(2 * M_PI * z * sqrt((1 / lam) * (1 / lam) - (u * ((double)j - x / 2)) * (u * ((double)j - x / 2)) - (v * ((double)i - y / 2)) * (v * ((double)i - y / 2))));
-			H->Im[i * x + j] = sin(2 * M_PI * z * sqrt((1 / lam) * (1 / lam) - (u * ((double)j - x / 2)) * (u * ((double)j - x / 2)) - (v * ((double)i - y / 2)) * (v * ((double)i - y / 2))));
+	int idx = blockDim.x * blockIdx.x + threadIdx.x;
+	int idy = blockDim.y * blockIdx.y + threadIdx.y;
 
-		}
+	if (idy < y && idx < x) {
+		Re[idy * x + idx] = cos(2 * M_PI * z * sqrt((1 / lam) * (1 / lam) - (u * ((double)idx - x / 2)) * (u * ((double)idx - x / 2)) - (v * ((double)idy - y / 2)) * (v * ((double)idy - y / 2))));
+		Im[idy * x + idx] = sin(2 * M_PI * z * sqrt((1 / lam) * (1 / lam) - (u * ((double)idx - x / 2)) * (u * ((double)idx - x / 2)) - (v * ((double)idy - y / 2)) * (v * ((double)idy - y / 2))));
+
 	}
+
+
 }
 
 
-void shift(cufftComplex* out, My_ComArray_2D* in, int x, int y)
-{
-
-	float tmpRe, tmpIm;
-
-	for (int i = 0; i < y; i++) {
-		for (int j = 0; j < x; j++) {
-
-			if (j < x / 2 && i < y / 2) {
-
-				tmpRe = (float)in->Re[(i + y / 2) * x + (j + x / 2)];
-				tmpIm = (float)in->Im[(i + y / 2) * x + (j + x / 2)];
-				out[i * x + j] = make_cuComplex(tmpRe, tmpIm);
-
-				tmpRe = (float)in->Re[i * x + j];
-				tmpIm = (float)in->Im[i * x + j];
-				out[(i + y / 2) * x + (j + x / 2)] = make_cuComplex(tmpRe, tmpIm);
-			}
-
-			else if (j >= x / 2 && i < y / 2) {
-
-				tmpRe = (float)in->Re[(i + y / 2) * x + (j - x / 2)];
-				tmpIm = (float)in->Im[(i + y / 2) * x + (j - x / 2)];
-				out[i * x + j] = make_cuComplex(tmpRe, tmpIm);
-
-				tmpRe = (float)in->Re[i * x + j];
-				tmpIm = (float)in->Im[i * x + j];
-				out[(i + y / 2) * x + (j + x / 2)] = make_cuComplex(tmpRe, tmpIm);
-			}
-		}
-	}
-}
-
-
-
-__global__ void mul_cucom(cufftComplex* out, cufftComplex* in1, cufftComplex* in2, int s)
-{
-	//int idx = blockDim.x * blockIdx.x + threadIdx.x;
-	float tmpRe, tmpIm;
-	/*if (idx < s) {
-		tmpRe = cuCrealf(in1[idx]) * cuCrealf(in2[idx]) - cuCimagf(in1[idx]) * cuCimagf(in2[idx]);
-		tmpIm = cuCrealf(in1[idx]) * cuCimagf(in2[idx]) + cuCimagf(in1[idx]) * cuCrealf(in2[idx]);
-
-		out[idx] = make_cuComplex(tmpRe, tmpIm);
-
-	}*/
-
-	for (int i = 0; i < s; i++) {
-		tmpRe = (cuCrealf(in1[i]) * cuCrealf(in2[i])) - (cuCimagf(in1[i]) * cuCimagf(in2[i]));
-		tmpIm = (cuCrealf(in1[i]) * cuCimagf(in2[i])) + (cuCimagf(in1[i]) * cuCrealf(in2[i]));
-
-		out[i] = make_cuComplex(tmpRe, tmpIm);
-	}
-}
-
-__global__ void mulcom(double* ore, double* oim, double* ire, double* iim, double* ire2, double* iim2, int s)
+__global__ void  shift(double* ore, double* oim, double* re, double* im, int x, int y)
 {
 	int idx = blockDim.x * blockIdx.x + threadIdx.x;
+	int idy = blockDim.y * blockIdx.y + threadIdx.y;
+
+	if (idy < y && idx < x) {
+
+		if (idx < x / 2 && idy < y / 2) {
+			ore[idy * x + idx] = re[(idy + y / 2) * x + (idx + x / 2)];
+			ore[(idy + y / 2) * x + (idx + x / 2)] = re[idy * x + idx];
+			oim[idy * x + idx] = im[(idy + y / 2) * x + (idx + x / 2)];
+			oim[(idy + y / 2) * x + (idx + x / 2)] = im[idy * x + idx];
+		}
+		else if (idx >= x / 2 && idy < y / 2) {
+			ore[idy * x + idx] = re[(idy + y / 2) * x + (idx - x / 2)];
+			ore[(idy + y / 2) * x + (idx - x / 2)] = re[idy * x + idx];
+			oim[idy * x + idx] = im[(idy + y / 2) * x + (idx - x / 2)];
+			oim[(idy + y / 2) * x + (idx - x / 2)] = im[idy * x + idx];
+		}
+
+
+
+	}
+}
+
+//void shift(cufftComplex* out, My_ComArray_2D* in, int x, int y)
+//{
+//
+//	float tmpRe, tmpIm;
+//
+//	for (int i = 0; i < y; i++) {
+//		for (int j = 0; j < x; j++) {
+//
+//			if (j < x / 2 && i < y / 2) {
+//
+//				tmpRe = (float)in->Re[(i + y / 2) * x + (j + x / 2)];
+//				tmpIm = (float)in->Im[(i + y / 2) * x + (j + x / 2)];
+//				out[i * x + j] = make_cuComplex(tmpRe, tmpIm);
+//
+//				tmpRe = (float)in->Re[i * x + j];
+//				tmpIm = (float)in->Im[i * x + j];
+//				out[(i + y / 2) * x + (j + x / 2)] = make_cuComplex(tmpRe, tmpIm);
+//			}
+//
+//			else if (j >= x / 2 && i < y / 2) {
+//
+//				tmpRe = (float)in->Re[(i + y / 2) * x + (j - x / 2)];
+//				tmpIm = (float)in->Im[(i + y / 2) * x + (j - x / 2)];
+//				out[i * x + j] = make_cuComplex(tmpRe, tmpIm);
+//
+//				tmpRe = (float)in->Re[i * x + j];
+//				tmpIm = (float)in->Im[i * x + j];
+//				out[(i + y / 2) * x + (j + x / 2)] = make_cuComplex(tmpRe, tmpIm);
+//			}
+//		}
+//	}
+//}
+
+
+
+//__global__ void mul_cucom(cufftComplex* out, cufftComplex* in1, cufftComplex* in2, int s)
+//{
+//	//int idx = blockDim.x * blockIdx.x + threadIdx.x;
+//	float tmpRe, tmpIm;
+//	/*if (idx < s) {
+//		tmpRe = cuCrealf(in1[idx]) * cuCrealf(in2[idx]) - cuCimagf(in1[idx]) * cuCimagf(in2[idx]);
+//		tmpIm = cuCrealf(in1[idx]) * cuCimagf(in2[idx]) + cuCimagf(in1[idx]) * cuCrealf(in2[idx]);
+//
+//		out[idx] = make_cuComplex(tmpRe, tmpIm);
+//
+//	}*/
+//
+//	for (int i = 0; i < s; i++) {
+//		tmpRe = (cuCrealf(in1[i]) * cuCrealf(in2[i])) - (cuCimagf(in1[i]) * cuCimagf(in2[i]));
+//		tmpIm = (cuCrealf(in1[i]) * cuCimagf(in2[i])) + (cuCimagf(in1[i]) * cuCrealf(in2[i]));
+//
+//		out[i] = make_cuComplex(tmpRe, tmpIm);
+//	}
+//}
+
+__global__ void mulcom(double* ore, double* oim, double* re, double* im, double* re2, double* im2, int s)
+{
+	int idx = blockDim.x * blockIdx.x + threadIdx.x;
+	//int idy = blockDim.y * blockIdx.y + threadIdx.y;
+
 	if (idx < s) {
-		ore[idx] = ire[idx] * ire2[idx] - iim[idx] * iim2[idx];
-		ore[idx] = ire[idx] * iim2[idx] + iim[idx] * ire2[idx];
+		ore[idx] = re[idx] * re2[idx] - im[idx] * im2[idx];
+		oim[idx] = re[idx] * im2[idx] + im[idx] * re2[idx];
 
 	}
 }
@@ -335,8 +371,6 @@ void kaku(My_ComArray_2D* in, int x, int y, double lamda, double d, double z)
 	My_ComArray_2D* tmp;
 	tmp = new My_ComArray_2D(4 * x * y, 2 * x, 2 * y);
 	in->zeropad(tmp);
-
-
 
 	cufftComplex* host;
 	host = (cufftComplex*)malloc(sizeof(cufftComplex) * x * y * 4);
@@ -349,37 +383,81 @@ void kaku(My_ComArray_2D* in, int x, int y, double lamda, double d, double z)
 
 
 	fft_2D_cuda_dev(2 * x, 2 * y, dev);
-	/*cudaMemcpy(host, dev, sizeof(cufftComplex) * x * y * 4, cudaMemcpyDeviceToHost);
-	cufftcom_to_mycom(tmp, host, 4 * x * y);*/
+	cudaMemcpy(host, dev, sizeof(cufftComplex) * x * y * 4, cudaMemcpyDeviceToHost);
+	cufftcom_to_mycom(tmp, host, 4 * x * y);
+	
+	double* re;
+	cudaMalloc((void**)&re, sizeof(double) * x * y * 4);
+	cudaMemcpy(re, tmp->Re, sizeof(double) * x * y * 4, cudaMemcpyHostToDevice);
+	double* im;
+	cudaMalloc((void**)&im, sizeof(double) * x * y * 4);
+	cudaMemcpy(im, tmp->Im, sizeof(double) * x * y * 4, cudaMemcpyHostToDevice);
 
 
-	My_ComArray_2D* H;
-	H = new My_ComArray_2D(4 * x * y, 2 * x, 2 * y);
-	/*Hdouble(d, lamda, z, H, 2 * x, 2 * y);
-	shift(host, H, 2 * x, 2 * y);*/
 
-	H_kaku(H, lamda, z, d, 2 * x, 2 * y);
-	//mul_com(4 * x * y, tmp, H, tmp);
-	/*set_cufftcomplex(host, H->Re, H->Im, x * y * 4);
-	cudaMemcpy(dev, host, sizeof(cufftComplex) * x * y * 4, cudaMemcpyHostToDevice);*/
 
-	/*cout << H->Re[0] << "\t" << H->Re[500] << "\n";
-	cout << cuCrealf(host[0]) << "\t" << cuCrealf(host[500]) << "\n";*/
 
-	cufftComplex* Hdev;
-	cudaMalloc((void**)&Hdev, sizeof(cufftComplex) * x * y * 4);
-	set_cufftcomplex(host, H->Re, H->Im, x * y * 4);
-	cudaMemcpy(Hdev, host, sizeof(cufftComplex) * x * y * 4, cudaMemcpyHostToDevice);
+	double* ReH, * ImH;
+	cudaMalloc((void**)&ReH, sizeof(double) * x * y * 4);
+	cudaMalloc((void**)&ImH, sizeof(double) * x * y * 4);
+
+	double* ReHs, * ImHs;
+	cudaMalloc((void**)&ReHs, sizeof(double) * x * y * 4);
+	cudaMalloc((void**)&ImHs, sizeof(double) * x * y * 4);
+
+
+
+	dim3 grid(1024, 1024), block(1024, 1024);
+	Hdouble<<<grid, block>>>(ReH, ImH, 1.496e-05, 532e-09, 0.1, 2 * x, 2 * y);
+
+
+
+	//ƒfƒoƒbƒO
+	cudaMemcpy(tmp->Re, ReH, sizeof(double) * x * y * 4, cudaMemcpyDeviceToHost);
+	cout << tmp->Re[10000] << "\t" << tmp->Re[100001] << endl;
+	My_ComArray_2D* th;
+	th = new My_ComArray_2D(4 * x * y, 2 * x, 2 * y);
+	H_kaku(th, 532e-09, 0.1, 1.496e-05, 2 * x, 2 * y);
+	cout << th->Re[10000] << "\t" << th->Re[100001] << endl;
+
+
+
+
+
+	shift<<<grid, block>>>(ReHs, ImHs, ReH, ImH, 2 * x, 2 * y);
+
+	cudaFree(ReH);
+	cudaFree(ImH);
+
+	//H_kaku(H, lamda, z, d, 2 * x, 2 * y);
+	////H->H_kaku(lamda, z, d);
+
+	/*double* re2;
+	cudaMalloc((void**)&re2, sizeof(double) * x * y * 4);
+	cudaMemcpy(re2, H->Re, sizeof(double) * x * y * 4, cudaMemcpyHostToDevice);
+	double* im2;
+	cudaMalloc((void**)&im2, sizeof(double) * x * y * 4);
+	cudaMemcpy(im2, H->Im, sizeof(double) * x * y * 4, cudaMemcpyHostToDevice);*/
 
 
 	//Š|‚¯ŽZ
-	cufftComplex* devr;
-	cudaMalloc((void**)&devr, sizeof(cufftComplex) * x * y * 4);
-	dim3 grid(1024, 1), block(1024, 1);
-	mul_cucom<<<grid, block>>>(devr, dev, Hdev, x * y * 4);
+	double* re3;
+	cudaMalloc((void**)&re3, sizeof(double) * x * y * 4);
+	double* im3;
+	cudaMalloc((void**)&im3, sizeof(double) * x * y * 4);
+	
+	//dim3 grid(128, 128), block(128, 128);
+	mulcom<<<1024,1024>>>(re3, im3, re, im, ReHs, ImHs, x * y * 4);
+
+	cudaMemcpy(tmp->Re, re3, sizeof(double) * x * y * 4, cudaMemcpyDeviceToHost);
+	cudaMemcpy(tmp->Im, im3, sizeof(double) * x * y * 4, cudaMemcpyDeviceToHost);
+
+	set_cufftcomplex(host, tmp->Re, tmp->Im, x * y * 4);
+	cudaMemcpy(dev, host, sizeof(cufftComplex) * x * y * 4, cudaMemcpyHostToDevice);
 
 
-	ifft_2D_cuda_dev(2 * x, 2 * y, devr);
+
+	ifft_2D_cuda_dev(2 * x, 2 * y, dev);
 
 
 	cudaMemcpy(host, dev, sizeof(cufftComplex) * x * y * 4, cudaMemcpyDeviceToHost);
@@ -394,7 +472,7 @@ void kaku(My_ComArray_2D* in, int x, int y, double lamda, double d, double z)
 	/*cudaFree(Hdev);
 	cudaFree(devr);*/
 	delete tmp;
-	delete H;
+	//delete H;
 
 }
 
