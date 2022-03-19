@@ -431,8 +431,9 @@ __global__ void mulcomcufftcom(cufftComplex* out, float* re, float* im, cufftCom
 	int idx = blockDim.x * blockIdx.x + threadIdx.x;
 
 	if (idx < s) {
-		ore[idx] = re[idx] * re2[idx] - im[idx] * im2[idx];
-		oim[idx] = re[idx] * im2[idx] + im[idx] * re2[idx];
+
+		out[idx] = make_cuComplex(re[idx] * cuCrealf(in[idx]) - im[idx] * cuCimagf(in[idx]),
+			re[idx] * cuCimagf(in[idx]) + im[idx] * cuCrealf(in[idx]));
 
 	}
 }
@@ -455,40 +456,58 @@ void kakucuda(My_ComArray_2D* in, int x, int y, float lamda, float d, float z) {
 
 	fft_2D_cuda_dev(2 * x, 2 * y, dev);
 
-	double* ReH, * ImH;
+	float* ReH, * ImH;
 	cudaMalloc((void**)&ReH, sizeof(float) * x * y * 4);
 	cudaMalloc((void**)&ImH, sizeof(float) * x * y * 4);
 
-	double* ReHs, * ImHs;
+	float* ReHs, * ImHs;
 	cudaMalloc((void**)&ReHs, sizeof(float) * x * y * 4);
 	cudaMalloc((void**)&ImHs, sizeof(float) * x * y * 4);
 
-	double u = 1 / ((float)2 * SX * d), v = 1 / ((float)2 * SY * d);
+	float u = 1 / ((float)2 * SX * d), v = 1 / ((float)2 * SY * d);
 	dim3 grid(32, 32), block(32, 32);
-	Hcudaf << <grid, block >> > (ReH, ImH, 2 * SX, 2 * SY, u, v, z, lamda);
-	shiftf << <grid, block >> > (ReHs, ImHs, ReH, ImH, 2 * x, 2 * y);
+	Hcudaf<<<grid, block>>>(ReH, ImH, 2 * SX, 2 * SY, u, v, z, lamda);
+	shiftf<<<grid, block>>>(ReHs, ImHs, ReH, ImH, 2 * x, 2 * y);
 
 
 	//Š|‚¯ŽZ
-	float* rsre;
-	cudaMalloc((void**)&rsre, sizeof(float) * x * y * 4);
-	float* rsim;
-	cudaMalloc((void**)&rsim, sizeof(float) * x * y * 4);
+	cufftComplex* rslt;
+	cudaMalloc((void**)&rslt, sizeof(cufftComplex) * x * y * 4);
+	mulcomcufftcom<<<1024, 1024 >>>(rslt, ReHs, ImHs, dev, 4 * x * y);
 
 
+	ifft_2D_cuda_dev(2 * x, 2 * y, rslt);
 
+
+	cudaMemcpy(host, rslt, sizeof(cufftComplex) * x * y * 4, cudaMemcpyDeviceToHost);
+	cufftcom_to_mycom(tmp, host, 4 * x * y);
+
+	//in‚Éo—Í
+	tmp->extract_center(in);
+
+	delete tmp;
+	free(host);
+
+	cudaFree(dev);
+	cudaFree(ReH);
+	cudaFree(ImH);
+	cudaFree(ReHs);
+	cudaFree(ImHs);
+
+	cudaFree(rslt);
 }
 
 string impath = "./lena512x512.bmp";
 string ompath = "./output.bmp";
 string ompath2 = "./output2.bmp";
+string lastpath = "./cudakaku.bmp";
 
 int main(void) {
 	My_Bmp* img;
 	img = new My_Bmp(SX, SY);
 	img->img_read(impath);
 
-	My_ComArray_2D* com;
+	/*My_ComArray_2D* com;
 	com = new My_ComArray_2D(SX * SY, SX, SY);
 
 	img->ucimg_to_double(com->Re);
@@ -504,11 +523,28 @@ int main(void) {
 	My_Bmp* img2;
 	img2 = new My_Bmp(SX, SY);
 	img2->data_to_ucimg(com->Re);
-	img2->img_write(ompath);
+	img2->img_write(ompath);*/
 
-	//ƒfƒoƒbƒO
-	img->ucimg_to_double(com->Re);
-	kakucuda(com, SX, SY, 532e-09, 1.496e-05, 0.1);
+	
+
+	My_ComArray_2D* comcuda;
+	comcuda = new My_ComArray_2D(SX * SY, SX, SY);
+	img->ucimg_to_double(comcuda->Re);
+
+	clock_t t5 = clock();
+
+	kaku(comcuda, SX, SY, (float)532e-09, (float)1.496e-05, (float)0.1);
+
+	clock_t t6 = clock();
+
+	cout << "ŒvŽZŽžŠÔ:" << (double)(t6 - t5) << endl;
+	comcuda->power(comcuda->Re);
+
+	My_Bmp* img4;
+	img4 = new My_Bmp(SX, SY);
+	img4->data_to_ucimg(comcuda->Re);
+	img4->img_write(lastpath);
+
 
 
 
@@ -537,10 +573,13 @@ int main(void) {
 	img3->data_to_ucimg(com2->Re);
 	img3->img_write(ompath2);
 
-	delete com;
+	//delete com;
 	delete img;
-	delete img2;
+	delete img4;
+	//delete img2;
+	delete comcuda;
 	delete com2;
+	delete H2;
 	delete img3;
 	return 0;
 }
