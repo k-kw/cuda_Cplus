@@ -51,7 +51,6 @@ void set_cufftcomplex(cufftComplex* cuconp, double* Re, double* Im, int size) {
 void fft_2D_cuda_dev(int x, int y, cufftComplex* dev)
 {
 	cufftHandle plan;
-	//doubleのときはZ2Z?
 	cufftPlan2d(&plan, x, y, CUFFT_C2C);
 	cufftExecC2C(plan, dev, dev, CUFFT_FORWARD);
 	cufftDestroy(plan);
@@ -162,9 +161,6 @@ __global__ void elimpad(cufftComplex* out, int sx, int sy, cufftComplex* in, int
 
 void kaku_cuda(cufftComplex* devicein, float* ReHs, float* ImHs, int x, int y) {
 
-
-
-
 	cufftComplex* devpad;
 	cudaMalloc((void**)&devpad, sizeof(cufftComplex) * 4 * x * y);
 	cudaMemset(devpad, 0, sizeof(cufftComplex) * 4 * x * y);
@@ -235,6 +231,22 @@ void kaku_cuda(cufftComplex* devicein, float* ReHs, float* ImHs, int x, int y) {
 
 }
 
+
+void Hcudaf_shiftf(float* devReH, float* devImH, int x, int y, float d, float z, float lamda) {
+	float* ReH, * ImH;
+	cudaMalloc((void**)&ReH, sizeof(float) * x * y);
+	cudaMalloc((void**)&ImH, sizeof(float) * x * y);
+
+	float u = 1 / (x * d), v = 1 / (y * d);
+	dim3 grid(32, 32), block(32, 32);
+	Hcudaf << <grid, block >> > (ReH, ImH, x, y, u, v, z, lamda);
+	shiftf << <grid, block >> > (devReH, devImH, ReH, ImH, x, y);
+
+	cudaFree(ReH);
+	cudaFree(ImH);
+}
+
+
 string impath = "./lena512x512.bmp";
 
 float d = 1.496e-5;
@@ -268,18 +280,19 @@ int main(void) {
 	cudaMemcpy(dev, host, sizeof(cufftComplex) * SX * SY, cudaMemcpyHostToDevice);
 
 	//Hをデバイスで計算
-	float* ReH, * ImH;
+	/*float* ReH, * ImH;
 	cudaMalloc((void**)&ReH, sizeof(float) * SX * SY * 4);
-	cudaMalloc((void**)&ImH, sizeof(float) * SX * SY * 4);
+	cudaMalloc((void**)&ImH, sizeof(float) * SX * SY * 4);*/
 	float* ReHs, * ImHs;
 	cudaMalloc((void**)&ReHs, sizeof(float) * SX * SY * 4);
 	cudaMalloc((void**)&ImHs, sizeof(float) * SX * SY * 4);
-	float u = 1 / (2 * SX * d), v = 1 / (2 * SY * d);
+	Hcudaf_shiftf(ReHs, ImHs, 2 * SX, 2 * SY, d, z, lamda);
+	/*float u = 1 / (2 * SX * d), v = 1 / (2 * SY * d);
 	dim3 grid(32, 32), block(32, 32);
 	Hcudaf << <grid, block >> > (ReH, ImH, 2 * SX, 2 * SY, u, v, z, lamda);
 	shiftf << <grid, block >> > (ReHs, ImHs, ReH, ImH, 2 * SX, 2 * SY);
 	cudaFree(ReH);
-	cudaFree(ImH);
+	cudaFree(ImH);*/
 
 
 	////Hデバッグ
