@@ -603,8 +603,6 @@ int main() {
             fft_2D_cuda_dev(2 * SX, 2 * SY, devpad);
             //normfft<<<(Nthread + BS - 1) / BS, BS >>>(devpad, 2 * SX, 2 * SY);
 
-
-
             ////ƒfƒoƒbƒO
             //cudaMemcpy(hostde, devpad, sizeof(cufftComplex) * SX * SY * 4, cudaMemcpyDeviceToHost);
             //cufftcom_to_mycom(de, hostde, 4 * SX * SY);
@@ -646,7 +644,6 @@ int main() {
             //    }
             //}
             
-
             ////ŠpƒXƒyƒNƒgƒ‹
             //kaku_cuda(dev, ReHs, ImHs, SX, SY, grid2, block, (Nthread + BS - 1) / BS, BS);
 
@@ -677,10 +674,7 @@ int main() {
             //    }
             //}
 
-
             ifft_2D_cuda_dev(2 * SX, 2 * SY, mul);
-
-
 
             //devicein‚Ö0elim
             elimpad<<<grid, block >>>(dev, SX, SY, mul, 2 * SX, 2 * SY);
@@ -701,7 +695,6 @@ int main() {
             //    delete check3;
             //}
 
-
             //ƒŒƒ“ƒY‚ðŠ|‚¯ŽZ
             muldoublecomcufftcom<<<(SX * SY + BS - 1) / BS, BS >>>(rslt, ReL, ImL, dev, SX * SY);
 
@@ -719,14 +712,12 @@ int main() {
             cudaMemcpy(host, dev, sizeof(cufftComplex) * SX * SY, cudaMemcpyDeviceToHost);
             cufftcom_to_mycom(Complex, host, SX * SY);
 
-
             ////ŠgŽU”Â‚Ü‚Å‚Ì“`”ÀŒvŽZ
             //Ha->kaku(Complex, Complex);
             ////ŠgŽU”ÂX‰æ‘œ
             //Complex->mul_complex(Lens);
             ////ƒ‰ƒCƒ“ƒZƒ“ƒT‚Ü‚Å“`”ÀŒvŽZ
             //Hb->kaku(Complex, Complex);
-
 
             //U•ŒvŽZ
             Complex->power(Complex->Re);
