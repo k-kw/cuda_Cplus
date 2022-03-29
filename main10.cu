@@ -41,12 +41,12 @@ using namespace cv;
 #define BY 28       //bindatの縦
 
 //SX,SYは今のところ2の階乗の正方形のみ
-#define SX 1024     //SLMでの横画素数(4で割れる整数に限る)
-#define SY 1024     //SLMでの縦画素数(4で割れる整数に限る)
+#define SX 3072     //SLMでの横画素数(4で割れる整数に限る)
+#define SY 2048     //SLMでの縦画素数(4で割れる整数に限る)
 
-#define short 1024     //短辺
+#define short 2048    //短辺
 
-#define N 1       //画像の枚数
+#define N 1000       //画像の枚数
 #define LENS_SIZE 32 //拡散板レンズのレンズサイズ
 
 #define CHECK_NUM N  //シミュレーション画像をチェックする番号
@@ -59,7 +59,7 @@ using namespace cv;
 
 float lamda = 532e-09;
 float d = 3.74e-06;
-float a = 0.1;
+float a = 0.01;
 float b = 0.001;
 float f = 0.001;
 
@@ -107,7 +107,14 @@ dim3 grid((SX2 + blockx - 1) / blockx, (SY2 + blocky - 1) / blocky), block(block
 
 
 //関数群
-void set_cufftcomplex(cufftComplex* cuconp, double* Re, double* Im, int size) {
+
+//void set_cufftcomplex(cufftComplex* cuconp, double* Re, double* Im, int size) {
+//    for (int i = 0; i < size; i++) {
+//        cuconp[i] = make_cuComplex((float)Re[i], (float)Im[i]);
+//    }
+//}
+
+void set_cufftcomplex(cuComplex* cuconp, double* Re, double* Im, int size) {
     for (int i = 0; i < size; i++) {
         cuconp[i] = make_cuComplex((float)Re[i], (float)Im[i]);
     }
@@ -122,10 +129,15 @@ __global__ void normfft(cufftComplex* dev, int x, int y)
     }
 }
 
+
+
 void fft_2D_cuda_dev(int x, int y, cufftComplex* dev)
 {
     cufftHandle plan;
-    cufftPlan2d(&plan, x, y, CUFFT_C2C);
+
+    //cufftPlan2d 第2引数 : 最も遅く変化する次元のサイズ
+    //cufftPlan2d 第3引数 : 最も速く変化する次元のサイズ
+    cufftPlan2d(&plan, y, x, CUFFT_C2C);
     cufftExecC2C(plan, dev, dev, CUFFT_FORWARD);
     cufftDestroy(plan);
 }
@@ -134,7 +146,10 @@ void fft_2D_cuda_dev(int x, int y, cufftComplex* dev)
 void ifft_2D_cuda_dev(int x, int y, cufftComplex* dev)
 {
     cufftHandle plan;
-    cufftPlan2d(&plan, x, y, CUFFT_C2C);
+
+    //cufftPlan2d 第2引数 : 最も遅く変化する次元のサイズ
+    //cufftPlan2d 第3引数 : 最も速く変化する次元のサイズ
+    cufftPlan2d(&plan, y, x, CUFFT_C2C);
     cufftExecC2C(plan, dev, dev, CUFFT_INVERSE);
     cufftDestroy(plan);
 }
@@ -153,28 +168,38 @@ __global__ void Hcudaf(float* Re, float* Im, int x, int y, float u, float v, flo
 {
     int idx = blockDim.x * blockIdx.x + threadIdx.x;
     int idy = blockDim.y * blockIdx.y + threadIdx.y;
-
-    /*if (idy >= y || idx >= x) {
-        return;
-    }
-
-    Re[idy * x + idx] = cos(2 * M_PI * z * sqrt(sqr(1 / lam) - sqr(u * ((float)idx - x / 2)) - sqr(v * ((float)idy - y / 2))));
-    Im[idy * x + idx] = sin(2 * M_PI * z * sqrt(sqr(1 / lam) - sqr(u * ((float)idx - x / 2)) - sqr(v * ((float)idy - y / 2))));*/
+   
     if (idy < y && idx < x) {
         Re[idy * x + idx] = cos(2 * M_PI * z * sqrt(sqr(1 / lam) - sqr(u * ((float)idx - x / 2)) - sqr(v * ((float)idy - y / 2))));
         Im[idy * x + idx] = sin(2 * M_PI * z * sqrt(sqr(1 / lam) - sqr(u * ((float)idx - x / 2)) - sqr(v * ((float)idy - y / 2))));
     }
 }
 
-void Hnotgpu(float* Re, float* Im, int x, int y, float u, float v, float z, float lam)
+
+__global__ void HcudacuCom(cuComplex* H, int x, int y, float z, float d, float lam)
 {
-    for (int i = 0; i < y; i++) {
-        for (int j = 0; j < x; j++) {
-            Re[i * x + j] = cos(2 * M_PI * z * sqrt(sqr(1 / lam) - sqr(u * ((float)j - x / 2)) - sqr(v * ((float)i - y / 2))));
-            Im[i * x + j] = sin(2 * M_PI * z * sqrt(sqr(1 / lam) - sqr(u * ((float)j - x / 2)) - sqr(v * ((float)i - y / 2))));
-        }
+    int idx = blockDim.x * blockIdx.x + threadIdx.x;
+    int idy = blockDim.y * blockIdx.y + threadIdx.y;
+
+    float u = 1 / (x * d), v = 1 / (y * d);
+
+
+    if (idy < y && idx < x) {
+        H[idy * x + idx] = make_cuComplex(cos(2 * M_PI * z * sqrt(sqr(1 / lam) - sqr(u * ((float)idx - x / 2)) - sqr(v * ((float)idy - y / 2)))),
+                sin(2 * M_PI * z * sqrt(sqr(1 / lam) - sqr(u * ((float)idx - x / 2)) - sqr(v * ((float)idy - y / 2)))));
     }
 }
+
+
+//void Hnotgpu(float* Re, float* Im, int x, int y, float u, float v, float z, float lam)
+//{
+//    for (int i = 0; i < y; i++) {
+//        for (int j = 0; j < x; j++) {
+//            Re[i * x + j] = cos(2 * M_PI * z * sqrt(sqr(1 / lam) - sqr(u * ((float)j - x / 2)) - sqr(v * ((float)i - y / 2))));
+//            Im[i * x + j] = sin(2 * M_PI * z * sqrt(sqr(1 / lam) - sqr(u * ((float)j - x / 2)) - sqr(v * ((float)i - y / 2))));
+//        }
+//    }
+//}
 
 
 __global__ void  shiftf(float* ore, float* oim, float* re, float* im, int x, int y)
@@ -199,25 +224,46 @@ __global__ void  shiftf(float* ore, float* oim, float* re, float* im, int x, int
     }
 }
 
-void shiftnotgpu(float* ore, float* oim, float* re, float* im, int x, int y) {
+__global__ void shiftCom(cuComplex* out, cuComplex* in, int x, int y)
+{
+    int idx = blockDim.x * blockIdx.x + threadIdx.x;
+    int idy = blockDim.y * blockIdx.y + threadIdx.y;
 
-    for (int i = 0; i < y; i++) {
-        for (int j = 0; j < x; j++) {
-            if (j < x / 2 && i < y / 2) {
-                ore[i * x + j] = re[(i + y / 2) * x + (j + x / 2)];
-                ore[(i + y / 2) * x + (j + x / 2)] = re[i * x + j];
-                oim[i * x + j] = im[(i + y / 2) * x + (j + x / 2)];
-                oim[(i + y / 2) * x + (j + x / 2)] = im[i * x + j];
-            }
-            else if (j >= x / 2 && i < y / 2) {
-                ore[i * x + j] = re[(i + y / 2) * x + (j - x / 2)];
-                ore[(i + y / 2) * x + (j - x / 2)] = re[i * x + j];
-                oim[i * x + j] = im[(i + y / 2) * x + (j - x / 2)];
-                oim[(i + y / 2) * x + (j - x / 2)] = im[i * x + j];
-            }
+    if (idy < y && idx < x) {
+
+        if (idx < x / 2 && idy < y / 2) {
+            out[idy * x + idx] = in[(idy + y / 2) * x + (idx + x / 2)];
+            out[(idy + y / 2) * x + (idx + x / 2)] = in[idy * x + idx];
+            
+        }
+        else if (idx >= x / 2 && idy < y / 2) {
+            out[idy * x + idx] = in[(idy + y / 2) * x + (idx - x / 2)];
+            out[(idy + y / 2) * x + (idx - x / 2)] = in[idy * x + idx];
+            
         }
     }
 }
+
+
+//void shiftnotgpu(float* ore, float* oim, float* re, float* im, int x, int y) {
+//
+//    for (int i = 0; i < y; i++) {
+//        for (int j = 0; j < x; j++) {
+//            if (j < x / 2 && i < y / 2) {
+//                ore[i * x + j] = re[(i + y / 2) * x + (j + x / 2)];
+//                ore[(i + y / 2) * x + (j + x / 2)] = re[i * x + j];
+//                oim[i * x + j] = im[(i + y / 2) * x + (j + x / 2)];
+//                oim[(i + y / 2) * x + (j + x / 2)] = im[i * x + j];
+//            }
+//            else if (j >= x / 2 && i < y / 2) {
+//                ore[i * x + j] = re[(i + y / 2) * x + (j - x / 2)];
+//                ore[(i + y / 2) * x + (j - x / 2)] = re[i * x + j];
+//                oim[i * x + j] = im[(i + y / 2) * x + (j - x / 2)];
+//                oim[(i + y / 2) * x + (j - x / 2)] = im[i * x + j];
+//            }
+//        }
+//    }
+//}
 
 //floatXcufftCom
 __global__ void mulcomcufftcom(cufftComplex* out, float* re, float* im, cufftComplex* in, int s)
@@ -245,6 +291,21 @@ __global__ void muldoublecomcufftcom(cufftComplex* out, double* re, double* im, 
 
     }
 }
+
+__global__ void Cmulfft(cufftComplex* out, cufftComplex* fin, cuComplex* in, int s)
+{
+    int idx = blockDim.x * blockIdx.x + threadIdx.x;
+
+    if (idx < s) {
+
+        out[idx] = cuCmulf(fin[idx], in[idx]);
+
+    }
+
+}
+
+
+
 
 __global__ void pad_cufftcom2cufftcom(cufftComplex* out, int lx, int ly, cufftComplex* in, int sx, int sy)
 {
@@ -329,42 +390,53 @@ void Hcudaf_shiftf(float* devReH, float* devImH, int x, int y, float d, float z,
     cudaFree(ImH);
 }
 
+void Hcudashiftcom(cuComplex* dev, int x, int y, float z, float d, float lamda, dim3 grid, dim3 block) {
+    cuComplex* tmp;
+    cudaMalloc((void**)&tmp, sizeof(cuComplex) * x * y);
 
-void Hnotgpushift(float* devReH, float* devImH, int x, int y, float d, float z, float lamda, dim3 grid, dim3 block) {
-   /* float* ReH, * ImH;
-    cudaMalloc((void**)&ReH, sizeof(float) * x * y);
-    cudaMalloc((void**)&ImH, sizeof(float) * x * y);*/
+    HcudacuCom<<<grid, block>>>(tmp, x, y, z, d, lamda);
+    shiftCom<<<grid, block>>>(dev, tmp, x, y);
 
-    float* Re, * Im, * Res, * Ims;
-    Re = new float[x * y];
-    Im = new float[x * y];
-    Res = new float[x * y];
-    Ims = new float[x * y];
-
-    float u = 1 / (x * d), v = 1 / (y * d);
-
-    Hnotgpu(Re, Im, x, y, u, v, z, lamda);
-
-    shiftnotgpu(Res, Ims, Re, Im, x, y);
-
-    //cudaMemcpy(ReH, Re, sizeof(float) * x * y, cudaMemcpyHostToDevice);
-    //cudaMemcpy(ImH, Im, sizeof(float) * x * y, cudaMemcpyHostToDevice);
-
-    //shiftf << <grid, block >> > (devReH, devImH, ReH, ImH, x, y);
-
-    /*cudaFree(ReH);
-    cudaFree(ImH);*/
-
-    cudaMemcpy(devReH, Res, sizeof(float) * x * y, cudaMemcpyHostToDevice);
-    cudaMemcpy(devImH, Ims, sizeof(float) * x * y, cudaMemcpyHostToDevice);
-
-
-    delete[]Re;
-    delete[]Im;
-    delete[]Res;
-    delete[]Ims;
+    cudaFree(tmp);
 
 }
+
+
+//void Hnotgpushift(float* devReH, float* devImH, int x, int y, float d, float z, float lamda, dim3 grid, dim3 block) {
+//   /* float* ReH, * ImH;
+//    cudaMalloc((void**)&ReH, sizeof(float) * x * y);
+//    cudaMalloc((void**)&ImH, sizeof(float) * x * y);*/
+//
+//    float* Re, * Im, * Res, * Ims;
+//    Re = new float[x * y];
+//    Im = new float[x * y];
+//    Res = new float[x * y];
+//    Ims = new float[x * y];
+//
+//    float u = 1 / (x * d), v = 1 / (y * d);
+//
+//    Hnotgpu(Re, Im, x, y, u, v, z, lamda);
+//
+//    shiftnotgpu(Res, Ims, Re, Im, x, y);
+//
+//    //cudaMemcpy(ReH, Re, sizeof(float) * x * y, cudaMemcpyHostToDevice);
+//    //cudaMemcpy(ImH, Im, sizeof(float) * x * y, cudaMemcpyHostToDevice);
+//
+//    //shiftf << <grid, block >> > (devReH, devImH, ReH, ImH, x, y);
+//
+//    /*cudaFree(ReH);
+//    cudaFree(ImH);*/
+//
+//    cudaMemcpy(devReH, Res, sizeof(float) * x * y, cudaMemcpyHostToDevice);
+//    cudaMemcpy(devImH, Ims, sizeof(float) * x * y, cudaMemcpyHostToDevice);
+//
+//
+//    delete[]Re;
+//    delete[]Im;
+//    delete[]Res;
+//    delete[]Ims;
+//
+//}
 
 
 
@@ -454,11 +526,19 @@ int main() {
 
 
         //レンズの配列をデバイスへ送る
-        double* ReL, * ImL;
+        /*double* ReL, * ImL;
         cudaMalloc((void**)&ReL, sizeof(double) * SX * SY);
         cudaMalloc((void**)&ImL, sizeof(double) * SX * SY);
         cudaMemcpy(ReL, Lens->Re, sizeof(double) * SX * SY, cudaMemcpyHostToDevice);
-        cudaMemcpy(ImL, Lens->Im, sizeof(double) * SX * SY, cudaMemcpyHostToDevice);
+        cudaMemcpy(ImL, Lens->Im, sizeof(double) * SX * SY, cudaMemcpyHostToDevice);*/
+
+        cuComplex* Lhost, * Ldev;
+        cudaMallocHost((void**)&Lhost, sizeof(cuComplex) * SX * SY);
+        cudaMalloc((void**)&Ldev, sizeof(cuComplex) * SX * SY);
+        set_cufftcomplex(Lhost, Lens->Re, Lens->Im, SX * SY);
+        cudaMemcpy(Ldev, Lhost, sizeof(cuComplex) * SX * SY, cudaMemcpyHostToDevice);
+
+
 
         //画像データを格納するhost
         //ページ固定でもOK
@@ -477,23 +557,30 @@ int main() {
 
         
         //H配列をデバイス側で作成
-        float* ReHa, * ImHa;
-        cudaMalloc((void**)&ReHa, sizeof(float) * SX * SY * 4);
-        cudaMalloc((void**)&ImHa, sizeof(float) * SX * SY * 4);
-        //ブロック当たりのスレッド数は合計1024までなので、block(32,32)より増やせない
-        //gridは上限ない？
-        Hcudaf_shiftf(ReHa, ImHa, 2 * SX, 2 * SY, d, a, lamda, grid, block);
+        //float* ReHa, * ImHa;
+        //cudaMalloc((void**)&ReHa, sizeof(float) * SX * SY * 4);
+        //cudaMalloc((void**)&ImHa, sizeof(float) * SX * SY * 4);
+        ////ブロック当たりのスレッド数は合計1024までなので、block(32,32)より増やせない
+        ////gridは上限ない？
+        //Hcudaf_shiftf(ReHa, ImHa, 2 * SX, 2 * SY, d, a, lamda, grid, block);
+        ////Hnotgpushift(ReHa, ImHa, 2 * SX, 2 * SY, d, a, lamda, grid, block);
+        //float* ReHb, * ImHb;
+        //cudaMalloc((void**)&ReHb, sizeof(float) * SX * SY * 4);
+        //cudaMalloc((void**)&ImHb, sizeof(float) * SX * SY * 4);
+        ////ブロック当たりのスレッド数は合計1024までなので、block(32,32)より増やせない
+        ////gridは上限ない？
+        //Hcudaf_shiftf(ReHb, ImHb, 2 * SX, 2 * SY, d, b, lamda, grid, block);
+        ////Hnotgpushift(ReHb, ImHb, 2 * SX, 2 * SY, d, b, lamda, grid, block);
 
-        //Hnotgpushift(ReHa, ImHa, 2 * SX, 2 * SY, d, a, lamda, grid, block);
 
-        float* ReHb, * ImHb;
-        cudaMalloc((void**)&ReHb, sizeof(float) * SX * SY * 4);
-        cudaMalloc((void**)&ImHb, sizeof(float) * SX * SY * 4);
-        //ブロック当たりのスレッド数は合計1024までなので、block(32,32)より増やせない
-        //gridは上限ない？
-        Hcudaf_shiftf(ReHb, ImHb, 2 * SX, 2 * SY, d, b, lamda, grid, block);
+        //NEW
+        cuComplex* Ha;
+        cudaMalloc((void**)&Ha, sizeof(cuComplex)* SX * SY * 4);
+        Hcudashiftcom(Ha, SX2, SY2, a, d, lamda, grid, block);
+        cuComplex* Hb;
+        cudaMalloc((void**)&Hb, sizeof(cuComplex) * SX * SY * 4);
+        Hcudashiftcom(Hb, SX2, SY2, b, d, lamda, grid, block);
 
-        //Hnotgpushift(ReHb, ImHb, 2 * SX, 2 * SY, d, b, lamda, grid, block);
 
 
         //掛け算の出力メモリ確保
@@ -642,86 +729,88 @@ int main() {
             cudaMemset(devpad, 0, sizeof(cufftComplex) * 4 * SX * SY);
             pad_cufftcom2cufftcom<<<grid2, block >>>(devpad, 2 * SX, 2 * SY, dev, SX, SY);
 
-            //デバッグ
-            cufftComplex* deb;
-            deb = (cufftComplex*)malloc(sizeof(cufftComplex) * SX * SY * 4);
-            cudaMemcpy(deb, devpad, sizeof(cufftComplex)* SX* SY * 4, cudaMemcpyDeviceToHost);
-            My_ComArray_2D* de;
-            de = new My_ComArray_2D(SX * SY * 4, SX2, SY2);
-            cufftcom2mycom(de, deb, SX* SY * 4);
-            de->power(de->Re);
-            My_Bmp* debug;
-            debug = new My_Bmp(SX2, SY2);
-            debug->data_to_ucimg(de->Re);
-            string debugimg = "./pad.bmp";
-            debug->img_write(debugimg);
+            ////デバッグ
+            //cufftComplex* deb;
+            //deb = (cufftComplex*)malloc(sizeof(cufftComplex) * SX * SY * 4);
+            //cudaMemcpy(deb, devpad, sizeof(cufftComplex)* SX* SY * 4, cudaMemcpyDeviceToHost);
+            //My_ComArray_2D* de;
+            //de = new My_ComArray_2D(SX * SY * 4, SX2, SY2);
+            //cufftcom2mycom(de, deb, SX* SY * 4);
+            //de->power(de->Re);
+            //My_Bmp* debug;
+            //debug = new My_Bmp(SX2, SY2);
+            //debug->data_to_ucimg(de->Re);
+            //string debugimg = "./pad.bmp";
+            //debug->img_write(debugimg);
 
 
 
             fft_2D_cuda_dev(SX2, SY2, devpad);
 
-            //デバッグ
-            cudaMemcpy(deb, devpad, sizeof(cufftComplex)* SX* SY * 4, cudaMemcpyDeviceToHost);
-            cufftcom2mycom(de, deb, SX* SY * 4);
-            de->power(de->Re);
-            debug->data_to_ucimg(de->Re);
-            string fftimg = "./fft1.bmp";
-            debug->img_write(fftimg);
+            ////デバッグ
+            //cudaMemcpy(deb, devpad, sizeof(cufftComplex)* SX* SY * 4, cudaMemcpyDeviceToHost);
+            //cufftcom2mycom(de, deb, SX* SY * 4);
+            //de->power(de->Re);
+            //debug->data_to_ucimg(de->Re);
+            //string fftimg = "./fft1.bmp";
+            //debug->img_write(fftimg);
 
             //normfft<<<(Nthread + BS - 1) / BS, BS >>>(devpad, 2 * SX, 2 * SY);
             //掛け算
-            mulcomcufftcom<<<(Nthread + BS - 1) / BS, BS >>>(mul, ReHa, ImHa, devpad, 4 * SX * SY);
+            //mulcomcufftcom<<<(Nthread + BS - 1) / BS, BS >>>(mul, ReHa, ImHa, devpad, 4 * SX * SY);
+            
+            //NEW
+            Cmulfft<<<(Nthread + BS - 1) / BS, BS >>>(mul, devpad, Ha, SX2 * SY2);
+
+
+
             ifft_2D_cuda_dev(SX2, SY2, mul);
             //deviceinへ0elim
             elimpad<<<grid2, block >>>(dev, SX, SY, mul, 2 * SX, 2 * SY);
 
-            //デバッグ
-            cudaMemcpy(host, dev, sizeof(cufftComplex) * SX * SY, cudaMemcpyDeviceToHost);
-            cufftcom2mycom(Complex, host, SX * SY);
-            Complex->power(Complex->Re);
-            My_Bmp* debug2;
-            debug2 = new My_Bmp(SX, SY);
-            debug2->data_to_ucimg(Complex->Re);
-            string one = "./kaku1-1.bmp";
-            debug2->img_write(one);
-
-
-            //デバッグ
-            cudaMemcpy(deb, devpad, sizeof(cufftComplex) * SX * SY * 4, cudaMemcpyDeviceToHost);
-            cufftcom2mycom(de, deb, SX * SY * 4);
-            My_ComArray_2D H(4 * SX * SY, 2 * SX, 2 * SY);
-            H.H_kaku((double)lamda, (double)a, (double)d);
-            H.mul_complex(de);
-            set_cufftcomplex(deb, H.Re, H.Im, 4 * SX * SY);
-            cudaMemcpy(mul, deb, sizeof(cufftComplex) * 4 * SX * SY, cudaMemcpyHostToDevice);
-            ifft_2D_cuda_dev(SX2, SY2, mul);
-            //deviceinへ0elim
-            elimpad << <grid2, block >> > (dev, SX, SY, mul, 2 * SX, 2 * SY);
-
-
-
-
-
-            ////デバッグ」
+            ////デバッグ
+            //cudaMemcpy(host, dev, sizeof(cufftComplex) * SX * SY, cudaMemcpyDeviceToHost);
+            //cufftcom2mycom(Complex, host, SX * SY);
+            //Complex->power(Complex->Re);
+            //My_Bmp* debug2;
+            //debug2 = new My_Bmp(SX, SY);
+            //debug2->data_to_ucimg(Complex->Re);
+            //string one = "./kaku1-1.bmp";
+            //debug2->img_write(one);
+            ////デバッグ
+            //cudaMemcpy(deb, devpad, sizeof(cufftComplex) * SX * SY * 4, cudaMemcpyDeviceToHost);
+            //cufftcom2mycom(de, deb, SX * SY * 4);
+            //My_ComArray_2D H(4 * SX * SY, 2 * SX, 2 * SY);
+            //H.H_kaku((double)lamda, (double)a, (double)d);
+            //H.mul_complex(de);
+            //set_cufftcomplex(deb, H.Re, H.Im, 4 * SX * SY);
+            //cudaMemcpy(mul, deb, sizeof(cufftComplex) * 4 * SX * SY, cudaMemcpyHostToDevice);
+            //ifft_2D_cuda_dev(SX2, SY2, mul);
+            ////deviceinへ0elim
+            //elimpad << <grid2, block >> > (dev, SX, SY, mul, 2 * SX, 2 * SY);
+            ////デバッグ
             //ifft_2D_cuda_dev(SX2, SY2, devpad);
             //elimpad << <grid2, block >> > (dev, SX, SY, devpad, 2 * SX, 2 * SY);
-
-            //デバッグ
-            cudaMemcpy(host, dev, sizeof(cufftComplex) * SX * SY, cudaMemcpyDeviceToHost);
-            cufftcom2mycom(Complex, host, SX * SY);
-            Complex->power(Complex->Re);
-            debug2->data_to_ucimg(Complex->Re);
-            string one2 = "./kaku1-2.bmp";
-            debug2->img_write(one2);
+            ////デバッグ
+            //cudaMemcpy(host, dev, sizeof(cufftComplex) * SX * SY, cudaMemcpyDeviceToHost);
+            //cufftcom2mycom(Complex, host, SX * SY);
+            //Complex->power(Complex->Re);
+            //debug2->data_to_ucimg(Complex->Re);
+            //string one2 = "./kaku1-2.bmp";
+            //debug2->img_write(one2);
 
             //レンズを掛け算
-            muldoublecomcufftcom<<<(SX * SY + BS - 1) / BS, BS >>>(rslt, ReL, ImL, dev, SX * SY);
+            //muldoublecomcufftcom<<<(SX * SY + BS - 1) / BS, BS >>>(rslt, ReL, ImL, dev, SX * SY);
+            Cmulfft<<<(SX * SY + BS - 1) / BS, BS >>>(rslt, dev, Ldev, SX * SY);
 
             //角スペクトル
             cudaMemset(devpad, 0, sizeof(cufftComplex) * 4 * SX * SY);
             pad_cufftcom2cufftcom<<<grid2, block >>>(devpad, 2 * SX, 2 * SY, rslt, SX, SY);
             fft_2D_cuda_dev(2 * SX, 2 * SY, devpad);
-            mulcomcufftcom<<<(Nthread + BS - 1) / BS, BS >>>(mul, ReHb, ImHb, devpad, 4 * SX * SY);
+            //mulcomcufftcom<<<(Nthread + BS - 1) / BS, BS >>>(mul, ReHb, ImHb, devpad, 4 * SX * SY);
+            //NEW
+            Cmulfft<<<(Nthread + BS - 1) / BS, BS >>>(mul, devpad, Hb, SX2 * SY2);
+            
             ifft_2D_cuda_dev(2 * SX, 2 * SY, mul);
             elimpad<<<grid2, block >>>(dev, SX, SY, mul, 2 * SX, 2 * SY);
 
@@ -779,7 +868,7 @@ int main() {
 
 
             if ((k + 1) % 100 == 0) {
-                cout << k + 1 << "まで完了----------------------------------------------\n";
+                cout << "-----------------------------------" << k + 1 << "--------------------------------------\n";
                 lap = clock();
                 cout << setprecision(4) << (double)(lap - start) / CLOCKS_PER_SEC / 60 << "分経過\n\n";
 
@@ -789,15 +878,20 @@ int main() {
 
         cudaFree(mul);
         cudaFree(rslt);
-        cudaFree(ReL);
-        cudaFree(ImL);
+        /*cudaFree(ReL);
+        cudaFree(ImL);*/
+        cudaFree(Ldev);
+        cudaFree(Lhost);
         cudaFree(host);
         cudaFree(dev);
         cudaFree(devpad);
-        cudaFree(ReHa);
+        /*cudaFree(ReHa);
         cudaFree(ImHa);
         cudaFree(ReHb);
-        cudaFree(ImHb);
+        cudaFree(ImHb);*/
+
+        cudaFree(Ha);
+        cudaFree(Hb);
 
     }
 

@@ -41,8 +41,8 @@ using namespace cv;
 #define BY 28       //bindat‚Ìc
 
 //SX,SY‚Í¡‚Ì‚Æ‚±‚ë2‚ÌŠKæ‚Ì³•ûŒ`‚Ì‚İ
-#define SX 4096     //SLM‚Å‚Ì‰¡‰æ‘f”(4‚ÅŠ„‚ê‚é®”‚ÉŒÀ‚é)
-#define SY 2048   //SLM‚Å‚Ìc‰æ‘f”(4‚ÅŠ„‚ê‚é®”‚ÉŒÀ‚é)
+#define SX 512     //SLM‚Å‚Ì‰¡‰æ‘f”(4‚ÅŠ„‚ê‚é®”‚ÉŒÀ‚é)
+#define SY 256   //SLM‚Å‚Ìc‰æ‘f”(4‚ÅŠ„‚ê‚é®”‚ÉŒÀ‚é)
 
 #define short 1024     //’Z•Ó
 
@@ -59,7 +59,7 @@ using namespace cv;
 
 float lamda = 532e-09;
 float d = 3.74e-06;
-float a = 0.1;
+float a = 0.001;
 float b = 0.001;
 float f = 0.001;
 
@@ -126,7 +126,7 @@ __global__ void normfft(cufftComplex* dev, int x, int y)
 void fft_2D_cuda_dev(int x, int y, cufftComplex* dev)
 {
     cufftHandle plan;
-    cufftPlan2d(&plan, x, y, CUFFT_C2C);
+    cufftPlan2d(&plan, y, x, CUFFT_C2C);
     cufftExecC2C(plan, dev, dev, CUFFT_FORWARD);
     cufftDestroy(plan);
 
@@ -137,10 +137,28 @@ void fft_2D_cuda_dev(int x, int y, cufftComplex* dev)
 void ifft_2D_cuda_dev(int x, int y, cufftComplex* dev)
 {
     cufftHandle plan;
-    cufftPlan2d(&plan, x, y, CUFFT_C2C);
+    cufftPlan2d(&plan, y, x, CUFFT_C2C);
     cufftExecC2C(plan, dev, dev, CUFFT_INVERSE);
     cufftDestroy(plan);
 }
+
+
+
+void fftmany2d(int x, int y, cufftComplex* dev) {
+
+    const int rank = 2;
+    int n[rank] = { x, y };
+
+    int inembed = y;
+    int onembed = x;
+
+    cufftHandle plan;
+    cufftPlanMany(&plan, rank, n, &inembed, NULL, NULL, &onembed, NULL, NULL, CUFFT_C2C, 1);
+    cufftExecC2C(plan, dev, dev, CUFFT_FORWARD);
+    cufftDestroy(plan);
+}
+
+
 
 void cufftcom2mycom(My_ComArray_2D* out, cufftComplex* in, int s) {
     for (int i = 0; i < s; i++) {
@@ -392,8 +410,8 @@ string t = "exp.bmp";
 string impath = "./pad.bmp";
 
 
-#define shx 4096
-#define shy 2048
+#define shx 512
+#define shy 256
 
 #define size SX*SY
 #define pads 4*SX*SY
@@ -425,7 +443,6 @@ int main() {
 
     /*unsigned char* res;
     res = new unsigned char[shy * shx];
-
     memcpy(res, bin_mat_res.data, shy * shx * sizeof(unsigned char));*/
 
     com->data_to_ReIm(img->img);
@@ -441,12 +458,26 @@ int main() {
     //host = (cufftComplex*)malloc(sizeof(cufftComplex) * SX * SY);
     set_cufftcomplex(host, com->Re, com->Im, shy * shx);
 
+    //fftw
+    My_Fft* f;
+    f = new My_Fft(shx, shy);
+    f->data_to_in(com->Re, com->Im);
+    f->fft2d();
+    f->out_to_data(com->Re, com->Im);
+    com->power(com->Re);
+    out->data_to_ucimg(com->Re);
+    string r2 = "./myfft.bmp";
+    out->img_write(r2);
+
+
 
     cufftComplex* dev;
     cudaMalloc((void**)&dev, sizeof(cufftComplex) * shx * shy);
     cudaMemcpy(dev, host, sizeof(cufftComplex) * shx * shy, cudaMemcpyHostToDevice);
 
     fft_2D_cuda_dev(shx, shy, dev);
+    //fftmany2d(shx, shy, dev);
+
 
     cudaMemcpy(host, dev, sizeof(cufftComplex) * shx * shy, cudaMemcpyDeviceToHost);
     cufftcom2mycom(com, host, shx * shy);
@@ -458,6 +489,15 @@ int main() {
     H->mul_complex(com);
     set_cufftcomplex(host, H->Re, H->Im, shx * shy);
     cudaMemcpy(dev, host, sizeof(cufftComplex) * shx * shy, cudaMemcpyHostToDevice);
+
+
+    com->power(com->Re);
+    out->data_to_ucimg(com->Re);
+    string r3 = "./cufft.bmp";
+    out->img_write(r3);
+
+
+
 
     /*com->power(com->Re);
 
