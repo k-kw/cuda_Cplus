@@ -46,7 +46,7 @@ using namespace cv;
 
 #define short 2048    //短辺
 
-#define N 1000       //画像の枚数
+#define N 1       //画像の枚数
 #define LENS_SIZE 32 //拡散板レンズのレンズサイズ
 
 #define CHECK_NUM N  //シミュレーション画像をチェックする番号
