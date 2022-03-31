@@ -46,7 +46,15 @@ using namespace cv;
 
 #define short 2048    //短辺
 
-#define N 1000       //画像の枚数
+//0埋め後画像サイズ
+#define SX2 2*SX
+#define SY2 2*SY
+
+#define SIZE SX*SY      //パディング前サイズ
+#define PADSIZE SX2*SY2 //パディング後サイズ
+
+
+#define N 10       //画像の枚数
 #define LENS_SIZE 32 //拡散板レンズのレンズサイズ
 
 #define CHECK_NUM N  //シミュレーション画像をチェックする番号
@@ -75,13 +83,13 @@ float f = 0.001;
 #define __CUDACC__
 #endif 
 
-//0埋め後画像サイズ
-#define SX2 2*SX
-#define SY2 2*SY
+
 
 //1次元のグリッドとブロック
 //総スレッド数
-#define Nthread SX2*SY2
+// PADSIZEに同じ
+//#define Nthread SX2*SY2
+// 
 //ブロック内のスレッド数1=<BS=<1024
 #define BS 1024
 
@@ -760,7 +768,7 @@ int main() {
             //mulcomcufftcom<<<(Nthread + BS - 1) / BS, BS >>>(mul, ReHa, ImHa, devpad, 4 * SX * SY);
             
             //NEW
-            Cmulfft<<<(Nthread + BS - 1) / BS, BS >>>(mul, devpad, Ha, SX2 * SY2);
+            Cmulfft<<<(PADSIZE + BS - 1) / BS, BS >>>(mul, devpad, Ha, SX2 * SY2);
 
 
 
@@ -809,7 +817,7 @@ int main() {
             fft_2D_cuda_dev(2 * SX, 2 * SY, devpad);
             //mulcomcufftcom<<<(Nthread + BS - 1) / BS, BS >>>(mul, ReHb, ImHb, devpad, 4 * SX * SY);
             //NEW
-            Cmulfft<<<(Nthread + BS - 1) / BS, BS >>>(mul, devpad, Hb, SX2 * SY2);
+            Cmulfft<<<(PADSIZE + BS - 1) / BS, BS >>>(mul, devpad, Hb, SX2 * SY2);
             
             ifft_2D_cuda_dev(2 * SX, 2 * SY, mul);
             elimpad<<<grid2, block >>>(dev, SX, SY, mul, 2 * SX, 2 * SY);
