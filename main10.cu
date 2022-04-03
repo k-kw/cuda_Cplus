@@ -44,22 +44,16 @@ using namespace cv;
 #define SX 4096     //SLMでの横画素数(4で割れる整数に限る)
 #define SY 2400     //SLMでの縦画素数(4で割れる整数に限る)
 float d = 3.74e-06;
-
 #define short 2400    //短辺
-
-
 //0埋め後画像サイズ
-#define SX2 2*SX
-#define SY2 2*SY
-
-#define SIZE SX*SY      //パディング前サイズ
-#define PADSIZE SX2*SY2 //パディング後サイズ
-
+#define SX2 (2*SX)
+#define SY2 (2*SY)
+#define SIZE (SX*SY)      //パディング前サイズ
+#define PADSIZE (SX2*SY2) //パディング後サイズ
 
 
-#define N 7       //画像の枚数
 
-
+#define N 70000       //画像の枚数
 #define CHECK_NUM N  //シミュレーション画像をチェックする番号
 
 //#define lam 532e-09  //波長
@@ -72,21 +66,30 @@ float d = 3.74e-06;
 float lamda = 532e-09;
 
 //レンズ拡散版の寸法とSLMから決める
-#define LENS_SIZE 32 //拡散板レンズのレンズサイズ
+#define LENS_SIZE 64 //拡散板レンズのレンズサイズ
 
 //伝搬距離と焦点距離
-float a = 0.02;
-float b = 0.02;
-float f = 0.001;
+float a = 0.04;
+float b = 0.04;
+float f = 0.003;
+
+
+////NEW
+////SLM解像度に対する、カメラの解像度の割合
+//#define SC 0.5
+////カメラの解像度
+//#define CAMX (int)(SX*SC)
+//#define CAMY (int)(SY*SC)
+////NEW
+
 
 
 #define resolution pow(2, 8) //解像度
 #define approx false    //レンズの式の近似
+#define sqr(x) ((x)*(x))
 
 
 //CUDA
-#define sqr(x) ((x)*(x))
-
 #ifndef __CUDACC__
 #define __CUDACC__
 #endif 
@@ -418,6 +421,18 @@ void Hcudashiftcom(cuComplex* dev, int x, int y, float z, float d, float lamda, 
 }
 
 
+__global__ void cucompower(double* power, cuComplex* dev, int s)
+{
+    int idx = blockDim.x * blockIdx.x + threadIdx.x;
+
+    if (idx < s) {
+
+        power[idx] = sqrt((double)sqr(cuCrealf(dev[idx])) + (double)sqr(cuCimagf(dev[idx])));
+
+    }
+}
+
+
 //void Hnotgpushift(float* devReH, float* devImH, int x, int y, float d, float z, float lamda, dim3 grid, dim3 block) {
 //   /* float* ReH, * ImH;
 //    cudaMalloc((void**)&ReH, sizeof(float) * x * y);
@@ -469,7 +484,7 @@ void Hcudashiftcom(cuComplex* dev, int x, int y, float z, float d, float lamda, 
 
 //ファイルパス
 string binpath = "../../../../dat/bindat/1byte/m_28_1.dat";
-string simpath = "../../../../dat/simdat/SLM_phase/1byte/lsd/test_sim.dat";
+string simpath = "../../../../dat/simdat/SLM_phase/1byte/lsd/m_real_a0.04_b0.04_f0.003_sim.dat";
 string oriimg = "./test.bmp";
 string simimg = "./testsim.bmp";
 string t = "exp.bmp";
@@ -589,7 +604,6 @@ int main() {
         ////Hnotgpushift(ReHb, ImHb, 2 * SX, 2 * SY, d, b, lamda, grid, block);
 
 
-        //NEW
         cuComplex* Ha;
         cudaMalloc((void**)&Ha, sizeof(cuComplex)* SX * SY * 4);
         Hcudashiftcom(Ha, SX2, SY2, a, d, lamda, grid, block);
@@ -606,6 +620,10 @@ int main() {
         //レンズの掛け算出力メモリ確保
         cufftComplex* rslt;
         cudaMalloc((void**)&rslt, sizeof(cufftComplex)* SX* SY);
+
+        //振幅格納配列
+        double* cupow;
+        cudaMalloc((void**)&cupow, sizeof(double) * SIZE);
 
 
         for (int k = 0; k < N; k++) {
@@ -830,13 +848,30 @@ int main() {
             ifft_2D_cuda_dev(2 * SX, 2 * SY, mul);
             elimpad<<<grid2, block >>>(dev, SX, SY, mul, 2 * SX, 2 * SY);
 
-            cudaMemcpy(host, dev, sizeof(cufftComplex) * SX * SY, cudaMemcpyDeviceToHost);
-            cufftcom2mycom(Complex, host, SX * SY);
 
-            
+            //NEW CUDACOMPLEX POWER
+            cucompower<<<(SIZE + BS - 1) / BS, BS >>>(cupow, dev, SIZE);
+            //NEW
 
-            //振幅計算
-            Complex->power(Complex->Re);
+
+
+
+
+            //cudaMemcpy(host, dev, sizeof(cufftComplex) * SX * SY, cudaMemcpyDeviceToHost);
+            //cufftcom2mycom(Complex, host, SX * SY);
+            //
+            ////振幅計算
+            //Complex->power(Complex->Re);
+            //if (k == CHECK_NUM - 1) {
+            //    My_Bmp* check;
+            //    check = new My_Bmp(SX, SY);
+            //    check->data_to_ucimg(Complex->Re);
+            //    check->img_write(simimg);
+            //    delete check;
+            //}
+
+            //NEW
+            cudaMemcpy(Complex->Re, cupow, sizeof(double) * SIZE, cudaMemcpyDeviceToHost);
 
             if (k == CHECK_NUM - 1) {
 
@@ -844,11 +879,12 @@ int main() {
                 check = new My_Bmp(SX, SY);
 
                 check->data_to_ucimg(Complex->Re);
+                //string newimg = "./new.bmp";
                 check->img_write(simimg);
-
                 delete check;
 
             }
+            //NEW
 
 
             double* Pline;
@@ -908,6 +944,7 @@ int main() {
 
         cudaFree(Ha);
         cudaFree(Hb);
+        cudaFree(cupow);
 
     }
 
