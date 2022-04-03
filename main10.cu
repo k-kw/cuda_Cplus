@@ -40,15 +40,14 @@ using namespace cv;
 #define BX 28       //bindat横
 #define BY 28       //bindatの縦
 
-//SX,SYは今のところ2の階乗の正方形のみ
-#define SX 3072     //SLMでの横画素数(4で割れる整数に限る)
-#define SY 2048     //SLMでの縦画素数(4で割れる整数に限る)
+//SLMに合わせたほうがいい？
+#define SX 4096     //SLMでの横画素数(4で割れる整数に限る)
+#define SY 2400     //SLMでの縦画素数(4で割れる整数に限る)
+float d = 3.74e-06;
 
-#define short 2048    //短辺
+#define short 2400    //短辺
 
-<<<<<<< HEAD
-#define N 1       //画像の枚数
-=======
+
 //0埋め後画像サイズ
 #define SX2 2*SX
 #define SY2 2*SY
@@ -57,9 +56,9 @@ using namespace cv;
 #define PADSIZE SX2*SY2 //パディング後サイズ
 
 
-#define N 10       //画像の枚数
->>>>>>> 150aace3fce15bc48f8b6d3e9e5dd633e8332dd8
-#define LENS_SIZE 32 //拡散板レンズのレンズサイズ
+
+#define N 7       //画像の枚数
+
 
 #define CHECK_NUM N  //シミュレーション画像をチェックする番号
 
@@ -69,10 +68,15 @@ using namespace cv;
 //#define b 0.03 //伝搬距離2
 //#define f 0.03 //焦点距離
 
+//波長
 float lamda = 532e-09;
-float d = 3.74e-06;
-float a = 0.01;
-float b = 0.001;
+
+//レンズ拡散版の寸法とSLMから決める
+#define LENS_SIZE 32 //拡散板レンズのレンズサイズ
+
+//伝搬距離と焦点距離
+float a = 0.02;
+float b = 0.02;
 float f = 0.001;
 
 
@@ -464,7 +468,7 @@ void Hcudashiftcom(cuComplex* dev, int x, int y, float z, float d, float lamda, 
 
 
 //ファイルパス
-string binpath = "../../../../dat/bindat/1byte/fm_28_1.dat";
+string binpath = "../../../../dat/bindat/1byte/m_28_1.dat";
 string simpath = "../../../../dat/simdat/SLM_phase/1byte/lsd/test_sim.dat";
 string oriimg = "./test.bmp";
 string simimg = "./testsim.bmp";
