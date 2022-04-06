@@ -53,7 +53,7 @@ float d = 3.74e-06;
 
 
 
-#define N 100       //画像の枚数
+#define N 200       //画像の枚数
 #define CHECK_NUM N  //シミュレーション画像をチェックする番号
 
 //#define lam 532e-09  //波長
@@ -133,11 +133,11 @@ dim3 grid((SX2 + blockx - 1) / blockx, (SY2 + blocky - 1) / blocky), block(block
 //    }
 //}
 
-void set_cufftcomplex(cuComplex* cuconp, double* Re, double* Im, int size) {
-    for (int i = 0; i < size; i++) {
-        cuconp[i] = make_cuComplex((float)Re[i], (float)Im[i]);
-    }
-}
+//void set_cufftcomplex(cuComplex* cuconp, double* Re, double* Im, int size) {
+//    for (int i = 0; i < size; i++) {
+//        cuconp[i] = make_cuComplex((float)Re[i], (float)Im[i]);
+//    }
+//}
 
 
 __global__ void cusetcufftcomplex(cuComplex* com, double* Re, double* Im, int size)
@@ -607,11 +607,26 @@ int main() {
         cudaMemcpy(ReL, Lens->Re, sizeof(double) * SX * SY, cudaMemcpyHostToDevice);
         cudaMemcpy(ImL, Lens->Im, sizeof(double) * SX * SY, cudaMemcpyHostToDevice);*/
 
-        cuComplex* Lhost, * Ldev;
+       /* cuComplex* Lhost, * Ldev;
         cudaMallocHost((void**)&Lhost, sizeof(cuComplex) * SX * SY);
         cudaMalloc((void**)&Ldev, sizeof(cuComplex) * SX * SY);
-        set_cufftcomplex(Lhost, Lens->Re, Lens->Im, SX * SY);
-        cudaMemcpy(Ldev, Lhost, sizeof(cuComplex) * SX * SY, cudaMemcpyHostToDevice);
+        set_cufftcomplex(Lhost, Lens->Re, Lens->Im, SX * SY);*/
+
+        //デバイス、double メモリ
+        double* dvbfd, * dvbfd2, * dvbfd3;
+        cudaMalloc((void**)&dvbfd, sizeof(double) * SIZE);
+        cudaMalloc((void**)&dvbfd2, sizeof(double) * SIZE);
+        cudaMalloc((void**)&dvbfd3, sizeof(double) * SIZE);
+
+        
+        cudaMemcpy(dvbfd, Lens->Re, sizeof(cuComplex) * SX * SY, cudaMemcpyHostToDevice);
+        cudaMemcpy(dvbfd2, Lens->Im, sizeof(cuComplex) * SX * SY, cudaMemcpyHostToDevice);
+
+        cuComplex* Ldev;
+        cudaMalloc((void**)&Ldev, sizeof(cuComplex) * SIZE);
+        cusetcufftcomplex<<<(SIZE + BS - 1) / BS, BS >>>(Ldev, dvbfd, dvbfd2, SIZE);
+
+        //cudaMemcpy(Ldev, Lhost, sizeof(cuComplex) * SX * SY, cudaMemcpyHostToDevice);
 
 
 
@@ -621,16 +636,22 @@ int main() {
         //cudaMallocHost((void**)&host, sizeof(cufftComplex)* SX* SY);
         ////host = (cufftComplex*)malloc(sizeof(cufftComplex) * SX * SY);
 
-        //hostをコピーするデバイス側のメモリ確保
-        cufftComplex* devbuf_cufc;
-        cudaMalloc((void**)&devbuf_cufc, sizeof(cufftComplex) * SX * SY);
-
-        //パディング後のメモリ確保
-        cufftComplex* devpad;
-        cudaMalloc((void**)&devpad, sizeof(cufftComplex) * SX * SY * 4);
+        ////hostをコピーするデバイス側のメモリ確保
+        //cufftComplex* devbuf_cufc;
+        //cudaMalloc((void**)&devbuf_cufc, sizeof(cufftComplex) * SX * SY);
 
 
-        
+        //デバイス,cufftComplexメモリ
+        cufftComplex* dvbffc, * dvbffc2;
+        cudaMalloc((void**)&dvbffc, sizeof(cufftComplex) * SIZE);
+        cudaMalloc((void**)&dvbffc2, sizeof(cufftComplex)* SIZE);
+
+
+        //デバイス,cufftComplex,PADSIZEメモリ
+        cufftComplex* dvbffcpd, * dvbffcpd2;
+        cudaMalloc((void**)&dvbffcpd, sizeof(cufftComplex)* PADSIZE);
+        cudaMalloc((void**)&dvbffcpd2, sizeof(cufftComplex) * PADSIZE);
+
         //H配列をデバイス側で作成
         //float* ReHa, * ImHa;
         //cudaMalloc((void**)&ReHa, sizeof(float) * SX * SY * 4);
@@ -657,21 +678,18 @@ int main() {
 
 
 
-        //掛け算の出力メモリ確保
-        cufftComplex* dvbf_cfc_pad;
-        cudaMalloc((void**)&dvbf_cfc_pad, sizeof(cufftComplex) * SX * SY * 4);
+        ////掛け算の出力メモリ確保
+        //cufftComplex* dvbf_cfc_pad;
+        //cudaMalloc((void**)&dvbf_cfc_pad, sizeof(cufftComplex) * SX * SY * 4);
+        ////レンズの掛け算出力メモリ確保
+        //cufftComplex* devbuf_cufc_2;
+        //cudaMalloc((void**)&devbuf_cufc_2, sizeof(cufftComplex)* SX* SY);
+        ////振幅格納配列
+        //double* devbuf_db;
+        //cudaMalloc((void**)&devbuf_db, sizeof(double) * SIZE);
+        //double* devRe;
 
-        //レンズの掛け算出力メモリ確保
-        cufftComplex* devbuf_cufc_2;
-        cudaMalloc((void**)&devbuf_cufc_2, sizeof(cufftComplex)* SX* SY);
-
-        //振幅格納配列
-        double* devbuf_db;
-        cudaMalloc((void**)&devbuf_db, sizeof(double) * SIZE);
-
-        double* devRe, * devIm;
-        cudaMalloc((void**)&devRe, sizeof(double)* SIZE);
-        cudaMalloc((void**)&devIm, sizeof(double)* SIZE);
+        
 
 
         for (int k = 0; k < N; k++) {
@@ -794,12 +812,12 @@ int main() {
             //NEW
             //set_cufftをcudaで
             
-            cudaMemcpy(devRe, Complex->Re, sizeof(double) * SIZE, cudaMemcpyHostToDevice);
-            cudaMemcpy(devIm, Complex->Im, sizeof(double) * SIZE, cudaMemcpyHostToDevice);
+            cudaMemcpy(dvbfd, Complex->Re, sizeof(double) * SIZE, cudaMemcpyHostToDevice);
+            cudaMemcpy(dvbfd2, Complex->Im, sizeof(double) * SIZE, cudaMemcpyHostToDevice);
 
             if (ampl_or_phase == 0) {
                 //振幅変調
-                cusetcufftcomplex << <(SIZE + BS - 1) / BS, BS >> > (devbuf_cufc, devRe, devIm, SIZE);
+                cusetcufftcomplex<<<(SIZE + BS - 1) / BS, BS >>>(dvbffc, dvbfd, dvbfd2, SIZE);
 
             }
             else {
@@ -811,8 +829,8 @@ int main() {
                 *Remin = get_min<double>(Complex->Re, SIZE);
                 
                 
-                cunormali<double><<<(SIZE + BS - 1) / BS, BS >>>(devRe, devbuf_db, *Remax, *Remin, SIZE);
-                cunormaliphase<<<(SIZE + BS - 1) / BS, BS >>>(devbuf_cufc, devbuf_db, SIZE);
+                cunormali<double><<<(SIZE + BS - 1) / BS, BS >>>(dvbfd, dvbfd3, *Remax, *Remin, SIZE);
+                cunormaliphase<<<(SIZE + BS - 1) / BS, BS >>>(dvbffc, dvbfd3, SIZE);
                 delete Remax; delete Remin;
             }
 
@@ -835,8 +853,8 @@ int main() {
             //OLD
 
             //角スペクトル
-            cudaMemset(devpad, 0, sizeof(cufftComplex) * 4 * SX * SY);
-            pad_cufftcom2cufftcom<<<grid2, block >>>(devpad, 2 * SX, 2 * SY, devbuf_cufc, SX, SY);
+            cudaMemset(dvbffcpd, 0, sizeof(cufftComplex) * 4 * SX * SY);
+            pad_cufftcom2cufftcom<<<grid2, block >>>(dvbffcpd, 2 * SX, 2 * SY, dvbffc, SX, SY);
 
             ////デバッグ
             //cufftComplex* deb;
@@ -854,7 +872,7 @@ int main() {
 
 
 
-            fft_2D_cuda_dev(SX2, SY2, devpad);
+            fft_2D_cuda_dev(SX2, SY2, dvbffcpd);
 
             ////デバッグ
             //cudaMemcpy(deb, devpad, sizeof(cufftComplex)* SX* SY * 4, cudaMemcpyDeviceToHost);
@@ -865,17 +883,14 @@ int main() {
             //debug->img_write(fftimg);
 
             //normfft<<<(Nthread + BS - 1) / BS, BS >>>(devpad, 2 * SX, 2 * SY);
-            //掛け算
-            //mulcomcufftcom<<<(Nthread + BS - 1) / BS, BS >>>(mul, ReHa, ImHa, devpad, 4 * SX * SY);
             
-            //NEW
-            Cmulfft<<<(PADSIZE + BS - 1) / BS, BS >>>(dvbf_cfc_pad, devpad, Ha, SX2 * SY2);
+            Cmulfft<<<(PADSIZE + BS - 1) / BS, BS >>>(dvbffcpd2, dvbffcpd, Ha, SX2 * SY2);
 
 
 
-            ifft_2D_cuda_dev(SX2, SY2, dvbf_cfc_pad);
+            ifft_2D_cuda_dev(SX2, SY2, dvbffcpd2);
             //deviceinへ0elim
-            elimpad<<<grid2, block >>>(devbuf_cufc, SX, SY, dvbf_cfc_pad, 2 * SX, 2 * SY);
+            elimpad<<<grid2, block >>>(dvbffc, SX, SY, dvbffcpd2, 2 * SX, 2 * SY);
 
             ////デバッグ
             //cudaMemcpy(host, dev, sizeof(cufftComplex) * SX * SY, cudaMemcpyDeviceToHost);
@@ -908,23 +923,17 @@ int main() {
             //string one2 = "./kaku1-2.bmp";
             //debug2->img_write(one2);
 
-            //レンズを掛け算
-            //muldoublecomcufftcom<<<(SX * SY + BS - 1) / BS, BS >>>(rslt, ReL, ImL, dev, SX * SY);
-            Cmulfft<<<(SX * SY + BS - 1) / BS, BS >>>(devbuf_cufc_2, devbuf_cufc, Ldev, SX * SY);
+            
+            Cmulfft<<<(SX * SY + BS - 1) / BS, BS >>>(dvbffc2, dvbffc, Ldev, SX * SY);
 
             //角スペクトル
-            cudaMemset(devpad, 0, sizeof(cufftComplex) * 4 * SX * SY);
-            pad_cufftcom2cufftcom<<<grid2, block >>>(devpad, 2 * SX, 2 * SY, devbuf_cufc_2, SX, SY);
-            fft_2D_cuda_dev(2 * SX, 2 * SY, devpad);
-            //mulcomcufftcom<<<(Nthread + BS - 1) / BS, BS >>>(mul, ReHb, ImHb, devpad, 4 * SX * SY);
-            //NEW
-            Cmulfft<<<(PADSIZE + BS - 1) / BS, BS >>>(dvbf_cfc_pad, devpad, Hb, SX2 * SY2);
-            
-            ifft_2D_cuda_dev(2 * SX, 2 * SY, dvbf_cfc_pad);
-            elimpad<<<grid2, block >>>(devbuf_cufc, SX, SY, dvbf_cfc_pad, 2 * SX, 2 * SY);
-
-
-            cucompower<<<(SIZE + BS - 1) / BS, BS >>>(devbuf_db, devbuf_cufc, SIZE);
+            cudaMemset(dvbffcpd, 0, sizeof(cufftComplex) * 4 * SX * SY);
+            pad_cufftcom2cufftcom<<<grid2, block >>>(dvbffcpd, 2 * SX, 2 * SY, dvbffc2, SX, SY);
+            fft_2D_cuda_dev(2 * SX, 2 * SY, dvbffcpd);
+            Cmulfft<<<(PADSIZE + BS - 1) / BS, BS >>>(dvbffcpd2, dvbffcpd, Hb, SX2 * SY2);
+            ifft_2D_cuda_dev(2 * SX, 2 * SY, dvbffcpd2);
+            elimpad<<<grid2, block >>>(dvbffc, SX, SY, dvbffcpd2, 2 * SX, 2 * SY);
+            cucompower<<<(SIZE + BS - 1) / BS, BS >>>(dvbfd3, dvbffc, SIZE);
 
 
 
@@ -941,7 +950,7 @@ int main() {
             //    delete check;
             //}
 
-            cudaMemcpy(Complex->Re, devbuf_db, sizeof(double) * SIZE, cudaMemcpyDeviceToHost);
+            cudaMemcpy(Complex->Re, dvbfd3, sizeof(double) * SIZE, cudaMemcpyDeviceToHost);
 
             if (k == CHECK_NUM - 1) {
 
@@ -997,24 +1006,31 @@ int main() {
         }
         delete Lens;
 
-        cudaFree(dvbf_cfc_pad);
-        cudaFree(devbuf_cufc_2);
+        
+        cudaFree(dvbffc);
+        cudaFree(dvbffc2);
+        cudaFree(dvbfd);
+        cudaFree(dvbfd2);
+        cudaFree(dvbfd3);
+        cudaFree(dvbffcpd);
+        cudaFree(dvbffcpd2);
+        cudaFree(Ldev);
+        cudaFree(Ha);
+        cudaFree(Hb);
+        //cudaFree(dvbf_cfc_pad);
+        //cudaFree(devbuf_cufc_2);
+        //cudaFree(devbuf_db);
+        //cudaFree(devRe); cudaFree(devIm);
+        //cudaFree(Lhost);
+        //cudaFree(host);
+        //cudaFree(devbuf_cufc);
+        //cudaFree(devpad);
         /*cudaFree(ReL);
         cudaFree(ImL);*/
-        cudaFree(Ldev);
-        cudaFree(Lhost);
-        //cudaFree(host);
-        cudaFree(devbuf_cufc);
-        cudaFree(devpad);
         /*cudaFree(ReHa);
         cudaFree(ImHa);
         cudaFree(ReHb);
         cudaFree(ImHb);*/
-
-        cudaFree(Ha);
-        cudaFree(Hb);
-        cudaFree(devbuf_db);
-        cudaFree(devRe); cudaFree(devIm);
     }
 
     else {
