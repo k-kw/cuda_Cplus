@@ -1025,12 +1025,12 @@ int main() {
         //cudaFree(host);
         //cudaFree(devbuf_cufc);
         //cudaFree(devpad);
-        /*cudaFree(ReL);
-        cudaFree(ImL);*/
-        /*cudaFree(ReHa);
-        cudaFree(ImHa);
-        cudaFree(ReHb);
-        cudaFree(ImHb);*/
+        //cudaFree(ReL);
+        //cudaFree(ImL);
+        //cudaFree(ReHa);
+        //cudaFree(ImHa);
+        //cudaFree(ReHb);
+        //cudaFree(ImHb);
     }
 
     else {
