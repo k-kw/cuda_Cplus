@@ -53,7 +53,7 @@ float d = 3.74e-06;
 
 
 
-#define N 200       //画像の枚数
+#define N 70000       //画像の枚数
 #define CHECK_NUM N  //シミュレーション画像をチェックする番号
 
 //#define lam 532e-09  //波長
@@ -66,12 +66,12 @@ float d = 3.74e-06;
 float lamda = 532e-09;
 
 //レンズ拡散版の寸法とSLMから決める
-#define LENS_SIZE 64 //拡散板レンズのレンズサイズ
+#define LENS_SIZE 32 //拡散板レンズのレンズサイズ
 
 //伝搬距離と焦点距離
-float a = 0.04;
-float b = 0.003;
-float f = 0.003;
+float a = 0.03;
+float b = 0.03;
+float f = 0.001;
 
 
 ////NEW
@@ -528,7 +528,7 @@ __global__ void cunormaliphase(cuComplex* out, double* normali, int s)
 
 
 string binpath = "../../../../dat/bindat/1byte/m_28_1.dat";
-string simpath = "../../../../dat/simdat/SLM_phase/1byte/lsd/test_sim.dat";
+string simpath = "../../../../dat/simdat/SLM_phase/1byte/lsd/m_real_a0.03_b0.03_f0.001_sim.dat";
 string oriimg = "./test.bmp";
 string simimg = "./testsim.bmp";
 string t = "exp.bmp";
@@ -601,16 +601,15 @@ int main() {
 
 
         //レンズの配列をデバイスへ送る
-        /*double* ReL, * ImL;
-        cudaMalloc((void**)&ReL, sizeof(double) * SX * SY);
-        cudaMalloc((void**)&ImL, sizeof(double) * SX * SY);
-        cudaMemcpy(ReL, Lens->Re, sizeof(double) * SX * SY, cudaMemcpyHostToDevice);
-        cudaMemcpy(ImL, Lens->Im, sizeof(double) * SX * SY, cudaMemcpyHostToDevice);*/
-
-       /* cuComplex* Lhost, * Ldev;
-        cudaMallocHost((void**)&Lhost, sizeof(cuComplex) * SX * SY);
-        cudaMalloc((void**)&Ldev, sizeof(cuComplex) * SX * SY);
-        set_cufftcomplex(Lhost, Lens->Re, Lens->Im, SX * SY);*/
+        //double* ReL, * ImL;
+        //cudaMalloc((void**)&ReL, sizeof(double) * SX * SY);
+        //cudaMalloc((void**)&ImL, sizeof(double) * SX * SY);
+        //cudaMemcpy(ReL, Lens->Re, sizeof(double) * SX * SY, cudaMemcpyHostToDevice);
+        //cudaMemcpy(ImL, Lens->Im, sizeof(double) * SX * SY, cudaMemcpyHostToDevice);
+        //cuComplex* Lhost, * Ldev;
+        //cudaMallocHost((void**)&Lhost, sizeof(cuComplex) * SX * SY);
+        //cudaMalloc((void**)&Ldev, sizeof(cuComplex) * SX * SY);
+        //set_cufftcomplex(Lhost, Lens->Re, Lens->Im, SX * SY);
 
         //デバイス、double メモリ
         double* dvbfd, * dvbfd2, * dvbfd3;
@@ -627,15 +626,11 @@ int main() {
         cusetcufftcomplex<<<(SIZE + BS - 1) / BS, BS >>>(Ldev, dvbfd, dvbfd2, SIZE);
 
         //cudaMemcpy(Ldev, Lhost, sizeof(cuComplex) * SX * SY, cudaMemcpyHostToDevice);
-
-
-
         //画像データを格納するhost
         //ページ固定でもOK
         //cufftComplex* host;
         //cudaMallocHost((void**)&host, sizeof(cufftComplex)* SX* SY);
         ////host = (cufftComplex*)malloc(sizeof(cufftComplex) * SX * SY);
-
         ////hostをコピーするデバイス側のメモリ確保
         //cufftComplex* devbuf_cufc;
         //cudaMalloc((void**)&devbuf_cufc, sizeof(cufftComplex) * SX * SY);
