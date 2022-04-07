@@ -527,8 +527,8 @@ __global__ void cunormaliphase(cuComplex* out, double* normali, int s)
 //ファイルパス
 
 
-string binpath = "../../../../dat/bindat/1byte/m_28_1.dat";
-string simpath = "../../../../dat/simdat/SLM_phase/1byte/lsd/m_real_a0.03_b0.03_f0.001_sim.dat";
+string binpath = "../../../../dat/bindat/1byte/fm_28_1.dat";
+string simpath = "../../../../dat/simdat/SLM_phase/1byte/lsd/fm_real_a0.03_b0.03_f0.001_sim.dat";
 string oriimg = "./test.bmp";
 string simimg = "./testsim.bmp";
 string t = "exp.bmp";
