@@ -41,19 +41,24 @@ using namespace cv;
 #define BY 28       //bindatの縦
 
 //SLMに合わせたほうがいい？
-#define SX 4096     //SLMでの横画素数(4で割れる整数に限る)
-#define SY 2400     //SLMでの縦画素数(4で割れる整数に限る)
-float d = 3.74e-06;
-#define short 2400    //短辺
+
+//#define SX 4096     //SLMでの横画素数(4で割れる整数に限る)
+//#define SY 2400     //SLMでの縦画素数(4で割れる整数に限る)
+//float d = 3.74e-06;
+//#define short 2400    //短辺
+
+#define SX 8192     //SLMでの横画素数(4で割れる整数に限る)
+#define SY 4800     //SLMでの縦画素数(4で割れる整数に限る)
+float d = 1.87e-06;
+#define short 4800    //短辺
+
 //0埋め後画像サイズ
 #define SX2 (2*SX)
 #define SY2 (2*SY)
 #define SIZE (SX*SY)      //パディング前サイズ
 #define PADSIZE (SX2*SY2) //パディング後サイズ
 
-
-
-#define N 70000       //画像の枚数
+#define N 6       //画像の枚数
 #define CHECK_NUM N  //シミュレーション画像をチェックする番号
 
 //#define lam 532e-09  //波長
@@ -66,13 +71,17 @@ float d = 3.74e-06;
 float lamda = 532e-09;
 
 //レンズ拡散版の寸法とSLMから決める
-#define LENS_SIZE 32 //拡散板レンズのレンズサイズ
+//#define LENS_SIZE 32 //拡散板レンズのレンズサイズ
+//1mm(レンズ角)/d(SLMピッチ)=267より
+#define LENS_SIZE 512
 
 //伝搬距離と焦点距離
-float a = 0.03;
-float b = 0.03;
-float f = 0.001;
-
+float a = 0.0066;
+//float b = 0.03;
+float b = 0.0033;
+//float f = 0.001;
+//フライアイレンズのデータシートより
+float f = 0.0033;
 
 ////NEW
 ////SLM解像度に対する、カメラの解像度の割合
@@ -82,12 +91,9 @@ float f = 0.001;
 //#define CAMY (int)(SY*SC)
 ////NEW
 
-
-
 #define resolution pow(2, 8) //解像度
 #define approx false    //レンズの式の近似
 #define sqr(x) ((x)*(x))
-
 
 //CUDA
 #ifndef __CUDACC__
@@ -514,21 +520,9 @@ __global__ void cunormaliphase(cuComplex* out, double* normali, int s)
 
 
 
-
-
-
-
-
-
-
-
-
-
 //ファイルパス
-
-
 string binpath = "../../../../dat/bindat/1byte/fm_28_1.dat";
-string simpath = "../../../../dat/simdat/SLM_phase/1byte/lsd/fm_real_a0.03_b0.03_f0.001_sim.dat";
+string simpath = "../../../../dat/simdat/SLM_phase/1byte/lsd/test_sim.dat";
 string oriimg = "./test.bmp";
 string simimg = "./testsim.bmp";
 string t = "exp.bmp";
@@ -595,7 +589,6 @@ int main() {
         else {
             //レンズアレイ拡散板
             Lens->diffuser_Lensarray(LENS_SIZE);
-
 
         }
 
@@ -784,7 +777,6 @@ int main() {
             //画像データ確認
             if (k == N - 1) {
 
-
                 My_Bmp* check;
                 check = new My_Bmp(SX, SY);
 
@@ -795,17 +787,11 @@ int main() {
 
             }
 
-
-
             My_ComArray_2D* Complex;
             Complex = new My_ComArray_2D(SX * SY, SX, SY);
 
             Complex->data_to_ReIm(padRe);
 
-
-
-            //NEW
-            //set_cufftをcudaで
             
             cudaMemcpy(dvbfd, Complex->Re, sizeof(double) * SIZE, cudaMemcpyHostToDevice);
             cudaMemcpy(dvbfd2, Complex->Im, sizeof(double) * SIZE, cudaMemcpyHostToDevice);
@@ -828,11 +814,6 @@ int main() {
                 cunormaliphase<<<(SIZE + BS - 1) / BS, BS >>>(dvbffc, dvbfd3, SIZE);
                 delete Remax; delete Remin;
             }
-
-            
-            //NEW
-
-
 
             delete[]padRe;
 
