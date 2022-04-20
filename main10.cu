@@ -68,7 +68,7 @@ float d = 1.87e-06;
 #define SIZE (SX*SY)      //パディング前サイズ
 #define PADSIZE (SX2*SY2) //パディング後サイズ
 
-#define N 6       //画像の枚数
+#define N 10       //画像の枚数
 #define CHECK_NUM N  //シミュレーション画像をチェックする番号
 
 //#define lam 532e-09  //波長
@@ -86,9 +86,9 @@ float lamda = 532e-09;
 #define LENS_SIZE 512
 
 //伝搬距離と焦点距離
-float a = 0.0066;
+float a = 0.04;
 //float b = 0.03;
-float b = 0.0033;
+float b = 0.04;
 //float f = 0.001;
 //フライアイレンズのデータシートより
 float f = 0.0033;
@@ -155,7 +155,34 @@ __global__ void cunormali(Type* devin, Type* devout, Type max, Type min, int s)
     }
 }
 
+bool samevalue_sclup(My_ComArray_2D *out, My_ComArray_2D *in) {
+    int xml, yml, inx, iny, outx, outy;
+    inx = in->x;
+    iny = in->y;
+    outx = out->x;
+    outy = out->y;
 
+    if ((outx <= inx) || (outy <= iny)) {
+        cout << "出力配列の幅と高さはいずれも入力より大きくしてください" << endl;
+        return false;
+    }
+
+    
+    xml = (outx + inx - 1) / inx;
+    yml = (outy + iny - 1) / iny;
+    
+
+    //cout << xml << yml << endl;
+
+    for (int i = 0; i < outy; i++) {
+        for (int j = 0; j < outx; j++) {
+            out->Re[i * outx + j] = in->Re[(int)(i / yml) * inx + (int)(j / xml)];
+            out->Im[i * outx + j] = in->Im[(int)(i / yml) * inx + (int)(j / xml)];
+
+        }
+    }
+    return true;
+}
 
 
 //ファイルパス
@@ -421,14 +448,42 @@ int main() {
             My_ComArray_2D* Complex, *tmp;
             Complex = new My_ComArray_2D(SX * SY, SX, SY);
             tmp = new My_ComArray_2D(SLMX * SLMY, SLMX, SLMY);
-
             tmp->data_to_ReIm(padRe);
+            
+            ////デバッグ
+            //if (k == CHECK_NUM - 1) {
+            //    My_Bmp* check;
+            //    check = new My_Bmp(SLMX, SLMY);
+            //    check->data_to_ucimg(tmp->Re);
+            //    string tmp = "tmp.bmp";
+            //    check->img_write(tmp);
+            //    delete check;
+            //}
 
             //tmpをComplexに拡大,格納
+            bool cf;
+            cf = samevalue_sclup(Complex, tmp);
+            if (cf == false){
+                cout << "SLMの解像度に合わせた配列より、計算する配列のサイズが小さいです。" << endl;
+                return 0;
+            
+            }
+            
+            //デバッグ
+            if (k == CHECK_NUM - 1) {
+
+                My_Bmp* check;
+                check = new My_Bmp(SX, SY);
+
+                check->data_to_ucimg(Complex->Re);
+                string upscl = "upscl.bmp";
+                check->img_write(upscl);
+                delete check;
+
+            }
 
 
-
-            delete[]tmp;
+            delete tmp;
 
             
             cudaMemcpy(dvbfd, Complex->Re, sizeof(double) * SIZE, cudaMemcpyHostToDevice);
