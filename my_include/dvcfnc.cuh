@@ -6,18 +6,7 @@
 //乱数ライブラリインクルード
 #include <curand.h>
 #include <curand_kernel.h>
-//copy
 
-//追加の依存ファイル設定の代わり
-//opencvはDLLのPATHを通して動的リンクライブラリ(暗黙的リンク)として
-#pragma comment(lib, "opencv_world454.lib")
-#pragma comment(lib, "opencv_world454d.lib")
-
-
-//bmpクラスを動的リンク(暗黙的リンク)
-#pragma comment(lib, "Dll_bmp_class.lib")
-//複素配列クラスを動的リンク(暗黙的リンク)
-#pragma comment(lib, "DllComArray.lib")
 
 //CUDA
 #ifndef __CUDACC__
@@ -67,7 +56,6 @@ void Hcudashiftcom(cuComplex* dev, int x, int y, float z, float d, float lamda, 
 
 
 __global__ void cucompower(double* power, cuComplex* dev, int s);
-
 
 
 __global__ void cunormaliphase(cuComplex* out, double* normali, int s);
