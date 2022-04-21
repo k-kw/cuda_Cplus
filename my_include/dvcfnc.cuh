@@ -49,6 +49,8 @@ __global__ void pad_cufftcom2cufftcom(cufftComplex* out, int lx, int ly, cufftCo
 
 __global__ void elimpad(cufftComplex* out, int sx, int sy, cufftComplex* in, int lx, int ly);
 
+__global__ void elimpad2Cmulfft(cuComplex* outmlt, cuComplex* opponent,
+    int sx, int sy, cuComplex* in, int lx, int ly);
 
 void Hcudaf_shiftf(float* devReH, float* devImH, int x, int y, float d, float z, float lamda, dim3 grid, dim3 block);
 
@@ -57,6 +59,7 @@ void Hcudashiftcom(cuComplex* dev, int x, int y, float z, float d, float lamda, 
 
 __global__ void cucompower(double* power, cuComplex* dev, int s);
 
+__global__ void elimpadcucompower(double* power, int sx, int sy, cuComplex* dev, int lx, int ly);
 
 __global__ void cunormaliphase(cuComplex* out, double* normali, int s);
 
