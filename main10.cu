@@ -69,7 +69,7 @@ float d = 1.87e-06;
 #define SY2 (2*SY)
 #define PADSIZE (SX2*SY2) //パディング後サイズ
 
-#define N 1       //画像の枚数
+#define N 100       //画像の枚数
 #define CHECK_NUM N  //シミュレーション画像をチェックする番号
 
 //#define lam 532e-09  //波長
@@ -222,6 +222,7 @@ void sum_scldown(double* out, int sx, int sy, double* in, int lx, int ly) {
     }
 }
 
+//CUDAでやると出力がおかしい
 //出力メモリはcudaMemsetで０にしておくべき
 __global__ void sum_scldwn_cuda(double* out, int sx, int sy, double* in, int lx, int ly) {
     int mul;
@@ -244,9 +245,10 @@ __global__ void sum_scldwn_cuda(double* out, int sx, int sy, double* in, int lx,
 
 //ファイルパス
 string binpath = "../../../../dat/bindat/1byte/m_28_1.dat";
-string simpath = "../../../../dat/simdat/SLM_phase/1byte/lsd/test_sim.dat";
+string simpath = "../../../../dat/simdat/SLM_phase/1byte/lsd/m_real_a0.04_b0.04_f0.0033_sim.dat";
 string oriimg = "./test.bmp";
-string simimg = "./testsim4.bmp";
+string simimg = "./testsim_last.bmp";
+string scaledown = "./scdwn_last.bmp";
 string t = "exp.bmp";
 
 int main() {
@@ -313,9 +315,9 @@ int main() {
             Lens->diffuser_Lensarray(LENS_SIZE);
 
         }
-        double* dvbfdq, * dvbfdq2;
+        double* dvbfdq;
         cudaMalloc((void**)&dvbfdq, sizeof(double) * SLMSIZE);
-        cudaMalloc((void**)&dvbfdq2, sizeof(double) * SLMSIZE);
+        //cudaMalloc((void**)&dvbfdq2, sizeof(double) * SLMSIZE);
 
         //デバイス、double メモリ
         double* dvbfd, * dvbfd2;
@@ -355,6 +357,24 @@ int main() {
         Complex = new My_ComArray_2D(SIZE, SX, SY);
         tmp = new My_ComArray_2D(SLMSIZE, SLMX, SLMY);
 
+        unsigned char* chRe;
+        int* intRe;
+        chRe = new unsigned char[BX * BY];
+        intRe = new int[BX * BY];
+
+
+        unsigned char* padRe;
+        padRe = new unsigned char[SLMX * SLMY];
+
+        double* scldwn, * Pline;
+        scldwn = new double[SLMSIZE];
+        Pline = new double[SLMX];
+
+        int* intw;
+        unsigned char* chw;
+        intw = new int[SLMX];
+        chw = new unsigned char[SLMX];
+
         for (int k = 0; k < N; k++) {
             //進捗状況表示
             if (k == 0) {
@@ -362,10 +382,7 @@ int main() {
             }
 
             //バイナリ読み込み配列ポインタ
-            unsigned char* chRe;
-            int* intRe;
-            chRe = new unsigned char[BX * BY];
-            intRe = new int[BX * BY];
+            
 
 
             //data読み取り
@@ -407,7 +424,6 @@ int main() {
 
                 delete check;
             }
-            delete[]intRe;
 
             //画像データを拡大するときCV_8Uでやる
             //画像データをcv::Matにコピー
@@ -415,7 +431,6 @@ int main() {
             memcpy(bin_mat.data, chRe, BX * BY * sizeof(unsigned char));
             /*imshow("View", bin_mat);
             waitKey(0);*/
-            delete[]chRe;
 
             //拡大
             Mat bin_mat_res(short, short, CV_8U);
@@ -435,15 +450,12 @@ int main() {
             imshow("View", bin_mat_pjr);
             waitKey(0);*/
 
-            unsigned char* padRe;
-            padRe = new unsigned char[SLMX * SLMY];
+            
 
 
             //拡大したcv::MatをpadReにコピー
-            memcpy(padRe, bin_mat_pjr.data, SLMX * SLMY * sizeof(unsigned char));
+            memcpy(padRe, bin_mat_pjr.data, SLMSIZE * sizeof(unsigned char));
             bin_mat_pjr.release();
-
-
 
             //画像データ確認
             if (k == N - 1) {
@@ -463,7 +475,8 @@ int main() {
 
             //NEW
             cudaMemcpy(dvbfdq, tmp->Re, sizeof(double) * SLMSIZE, cudaMemcpyHostToDevice);
-            cudaMemcpy(dvbfdq2, tmp->Im, sizeof(double) * SLMSIZE, cudaMemcpyHostToDevice);
+            //cudaMemcpy(dvbfdq2, tmp->Im, sizeof(double) * SLMSIZE, cudaMemcpyHostToDevice);
+            
             ////デバッグ
             //My_ComArray_2D* tmp1;
             //tmp1 = new My_ComArray_2D(SLMSIZE, SLMX, SLMY);
@@ -481,7 +494,9 @@ int main() {
 
 
             samevl_sclup_cuda<<<grid2, block >>>(dvbfd, SX, SY, dvbfdq, SLMX, SLMY);
-            samevl_sclup_cuda<<<grid2, block >>>(dvbfd2, SX, SY, dvbfdq2, SLMX, SLMY);
+            cudaMemset(dvbfd2, 0, sizeof(double)* SLMSIZE);
+            //samevl_sclup_cuda<<<grid2, block >>>(dvbfd2, SX, SY, dvbfdq2, SLMX, SLMY);
+            
             //NEW
 
             /*cudaMemcpy(Complex->Re, dvbfd, sizeof(double)* SIZE, cudaMemcpyDeviceToHost);
@@ -546,13 +561,12 @@ int main() {
                 delete Remax; delete Remin;
             }
 
-            delete[]padRe;
 
             //角スペクトル
             cudaMemset(dvbffcpd, 0, sizeof(cufftComplex) * PADSIZE);
             pad_cufftcom2cufftcom<<<grid2, block >>>(dvbffcpd, SX2, SY2, dvbffc, SX, SY);
             fft_2D_cuda_dev(SX2, SY2, dvbffcpd);
-            Cmulfft<<<(PADSIZE + BS - 1) / BS, BS >>>(dvbffcpd, dvbffcpd, Ha, SX2 * SY2);
+            Cmulfft<<<(PADSIZE + BS - 1) / BS, BS >>>(dvbffcpd, dvbffcpd, Ha, PADSIZE);
             ifft_2D_cuda_dev(SX2, SY2, dvbffcpd);
 
             //deviceinへ0elim
@@ -565,7 +579,7 @@ int main() {
             cudaMemset(dvbffcpd, 0, sizeof(cufftComplex) * PADSIZE);
             pad_cufftcom2cufftcom<<<grid2, block >>>(dvbffcpd, SX2, SY2, dvbffc, SX, SY);
             fft_2D_cuda_dev(SX2, SY2, dvbffcpd);
-            Cmulfft<<<(PADSIZE + BS - 1) / BS, BS >>>(dvbffcpd, dvbffcpd, Hb, SX2 * SY2);
+            Cmulfft<<<(PADSIZE + BS - 1) / BS, BS >>>(dvbffcpd, dvbffcpd, Hb, PADSIZE);
             ifft_2D_cuda_dev(SX2, SY2, dvbffcpd);
 
             /*elimpad<<<grid2, block >>>(dvbffc, SX, SY, dvbffcpd, SX2, SY2);
@@ -573,32 +587,31 @@ int main() {
 
             elimpadcucompower<<<grid2, block >>>(dvbfd, SX, SY, dvbffcpd, SX2, SY2);
 
-            double* scldwn;
-            scldwn = new double[SLMSIZE];
-            memset(scldwn, 0, sizeof(double) * SLMSIZE);
+            
+            
 
-            //NEW
-            //グラボ側で総和をとって、サイズダウン
-            double* powdwn;
-            cudaMalloc((void**)&powdwn, sizeof(double) * SLMSIZE);
-            cudaMemset(powdwn, 0, sizeof(double) * SLMSIZE);
+            ////NEW
+            ////グラボ側で総和をとって、サイズダウン
+            //double* powdwn;
+            //cudaMalloc((void**)&powdwn, sizeof(double) * SLMSIZE);
+            //cudaMemset(powdwn, 0, sizeof(double) * SLMSIZE);
 
-            sum_scldwn_cuda<<<grid2, block >>>(powdwn, SLMX, SLMY, dvbfd, SX, SY);
-            cudaMemcpy(scldwn, powdwn, sizeof(double) * SLMSIZE, cudaMemcpyDeviceToHost);
+            //sum_scldwn_cuda<<<grid2, block >>>(powdwn, SLMX, SLMY, dvbfd, SX, SY);
+            //cudaMemcpy(scldwn, powdwn, sizeof(double) * SLMSIZE, cudaMemcpyDeviceToHost);
 
-            //デバッグ
-            if (k == CHECK_NUM - 1) {
+            ////デバッグ
+            //if (k == CHECK_NUM - 1) {
 
-                My_Bmp* check;
-                check = new My_Bmp(SLMX, SLMY);
+            //    My_Bmp* check;
+            //    check = new My_Bmp(SLMX, SLMY);
 
-                check->data_to_ucimg(scldwn);
-                string dwncuda = "scldwncuda.bmp";
-                check->img_write(dwncuda);
-                delete check;
+            //    check->data_to_ucimg(scldwn);
+            //    string dwncuda = "scldwncuda.bmp";
+            //    check->img_write(dwncuda);
+            //    delete check;
 
-            }
-            //NEW
+            //}
+            ////NEW
             cudaMemcpy(Complex->Re, dvbfd, sizeof(double) * SIZE, cudaMemcpyDeviceToHost);
 
             if (k == CHECK_NUM - 1) {
@@ -612,14 +625,14 @@ int main() {
 
             }
 
-            //出力振幅をカメラの解像度くらいまで落とす
-           
-            memset(scldwn, 0, sizeof(double) * SLMSIZE);
+            //CPUで出力振幅をカメラの解像度くらいまで落とす
+            //memset(scldwn, 0, sizeof(double) * SLMSIZE);
             if ((int)(SX / SLMX) != (int)(SY / SLMY)) {
                 //同じ比率でないなら終了
                 cout << "SLM解像度とシミュレーション配列は縦横同じ比率にしてください。\n";
                 return 0;
             }
+            memset(scldwn, 0, sizeof(double) * SLMSIZE);
             sum_scldown(scldwn, SLMX, SLMY, Complex->Re, SX, SY);
             //デバッグ
             if (k == CHECK_NUM - 1) {
@@ -628,40 +641,37 @@ int main() {
                 check = new My_Bmp(SLMX, SLMY);
 
                 check->data_to_ucimg(scldwn);
-                string dwn = "scldwn.bmp";
-                check->img_write(dwn);
+                check->img_write(scaledown);
                 delete check;
 
             }
 
 
-            double* Pline;
-            Pline = new double[SX];
-
-            mid_line<double>(Complex->Re, SX, SY, Pline);
+            
+            mid_line<double>(scldwn, SLMX, SLMY, Pline);
 
             //書き込み配列
-            int* intw;
-            unsigned char* chw;
-            intw = new int[SX];
-            chw = new unsigned char[SX];
+            
+            /*norm_reso_n<double>(Pline, intw, (int)(resolution - 1), SX);*/
+            norm_reso_n<double>(Pline, intw, (int)(resolution - 1), SLMX);
 
-            norm_reso_n<double>(Pline, intw, (int)(resolution - 1), SX);
-            delete[]Pline;
-            to_uch(intw, SX, chw);
+            
+            //to_uch(intw, SX, chw);
+            to_uch(intw, SLMX, chw);
 
             //書き込み
             if (byte_numw == 1) {
-                ofs.write((char*)chw, sizeof(unsigned char) * SX);
+                //ofs.write((char*)chw, sizeof(unsigned char) * SX);
+                ofs.write((char*)chw, sizeof(unsigned char) * SLMX);
 
             }
             else {
-                ofs.write((char*)intw, sizeof(int) * SX);
+                //ofs.write((char*)intw, sizeof(int) * SX);
+                ofs.write((char*)intw, sizeof(int) * SLMX);
 
             }
 
-            delete[]intw;
-            delete[]chw;
+            
 
             if ((k + 1) % 100 == 0) {
                 cout << "-----------------------------------" << k + 1 << "--------------------------------------\n";
@@ -670,11 +680,18 @@ int main() {
 
             }
         }
+        delete[]intRe;
+        delete[]chRe;
         delete Lens;
         delete tmp;
         delete Complex;
+        delete[]scldwn;
+        delete[]Pline;
+        delete[]intw;
+        delete[]chw;
+        delete[]padRe;
         cudaFree(dvbfdq);
-        cudaFree(dvbfdq2);
+        //cudaFree(dvbfdq2);
         cudaFree(dvbffc);
         cudaFree(dvbfd);
         cudaFree(dvbfd2);
