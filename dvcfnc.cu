@@ -48,7 +48,7 @@ __global__ void cusetcufftcomplex(cuComplex* com, double* Re, double* Im, int si
     }
 }
 
-
+//using
 __global__ void normfft(cufftComplex* dev, int x, int y)
 {
     int idx = blockDim.x * blockIdx.x + threadIdx.x;
@@ -194,13 +194,16 @@ __global__ void muldoublecomcufftcom(cufftComplex* out, double* re, double* im, 
 __global__ void Cmulfft(cuComplex* out, cuComplex* fin, cuComplex* in, int s)
 {
     int idx = blockDim.x * blockIdx.x + threadIdx.x;
-    cuComplex tmp1, tmp2;
+    //レジスタver
+    //cuComplex tmp1, tmp2;
     
 
     if (idx < s) {
-        tmp1 = make_cuComplex(cuCrealf(fin[idx]), cuCimagf(fin[idx]));
-        tmp2 = make_cuComplex(cuCrealf(in[idx]), cuCimagf(in[idx]));
-        out[idx] = cuCmulf(tmp1, tmp2);
+        /*tmp1 = make_cuComplex(cuCrealf(fin[idx]), cuCimagf(fin[idx]));
+        tmp2 = make_cuComplex(cuCrealf(in[idx]), cuCimagf(in[idx]));*/
+        //out[idx] = cuCmulf(tmp1, tmp2);
+
+        out[idx] = cuCmulf(fin[idx], in[idx]);
 
     }
 
@@ -276,7 +279,7 @@ void Hcudashiftcom(cuComplex* dev, int x, int y, float z, float d, float lamda, 
 
 }
 
-//using
+
 __global__ void cucompower(double* power, cuComplex* dev, int s)
 {
     int idx = blockDim.x * blockIdx.x + threadIdx.x;
@@ -293,7 +296,7 @@ __global__ void elimpadcucompower(double* power ,int sx, int sy, cuComplex* dev,
 {
     int idx = blockDim.x * blockIdx.x + threadIdx.x;
     int idy = blockDim.y * blockIdx.y + threadIdx.y;
-
+    //レジスタver
     double tmp1, tmp2;
 
     if (idx < sx && idy < sy) {
