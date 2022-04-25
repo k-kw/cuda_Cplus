@@ -69,7 +69,7 @@ float d = 1.87e-06;
 #define SY2 (2*SY)
 #define PADSIZE (SX2*SY2) //パディング後サイズ
 
-#define N 7       //画像の枚数
+#define N 70000       //画像の枚数
 #define CHECK_NUM N  //シミュレーション画像をチェックする番号
 
 //#define lam 532e-09  //波長
@@ -494,7 +494,7 @@ int main() {
 
 
             samevl_sclup_cuda<<<grid2, block >>>(dvbfd, SX, SY, dvbfdq, SLMX, SLMY);
-            cudaMemset(dvbfd2, 0, sizeof(double)* SLMSIZE);
+            cudaMemset(dvbfd2, 0, sizeof(double)* SIZE);
             //samevl_sclup_cuda<<<grid2, block >>>(dvbfd2, SX, SY, dvbfdq2, SLMX, SLMY);
             
             //NEW
