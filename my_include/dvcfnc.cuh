@@ -15,7 +15,7 @@
 
 //ä÷êîåQ
 
-__global__ void cusetcufftcomplex(cuComplex* com, double* Re, double* Im, int size);
+__global__ void cusetcucomplex(cuComplex* com, double* Re, double* Im, int size);
 
 
 __global__ void normfft(cufftComplex* dev, int x, int y);

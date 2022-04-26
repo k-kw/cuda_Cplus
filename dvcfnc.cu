@@ -38,7 +38,7 @@ using namespace std;
 //ä÷êîåQ
 
 //using
-__global__ void cusetcufftcomplex(cuComplex* com, double* Re, double* Im, int size)
+__global__ void cusetcucomplex(cuComplex* com, double* Re, double* Im, int size)
 {
 
     int idx = blockDim.x * blockIdx.x + threadIdx.x;
