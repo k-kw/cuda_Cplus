@@ -69,7 +69,7 @@ float d = 1.87e-06;
 #define SY2 (2*SY)
 #define PADSIZE (SX2*SY2) //パディング後サイズ
 
-#define N 200       //画像の枚数
+#define N 2       //画像の枚数
 #define CHECK_NUM N  //シミュレーション画像をチェックする番号
 
 //#define lam 532e-09  //波長
@@ -87,9 +87,9 @@ float lamda = 532e-09;
 #define LENS_SIZE 512
 
 //伝搬距離と焦点距離
-float a = 0.0066;
+float a = 0.04;
 //float b = 0.03;
-float b = 0.0066;
+float b = 0.04;
 //float f = 0.001;
 //フライアイレンズのデータシートより
 float f = 0.0033;
@@ -686,7 +686,6 @@ int main() {
             }
 
             //CPUで出力振幅をカメラの解像度くらいまで落とす
-            //memset(scldwn, 0, sizeof(double) * SLMSIZE);
             if ((int)(SX / SLMX) != (int)(SY / SLMY)) {
                 //同じ比率でないなら終了
                 cout << "SLM解像度とシミュレーション配列は縦横同じ比率にしてください。\n";
