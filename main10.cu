@@ -69,7 +69,7 @@ float d = 1.87e-06;
 #define SY2 (2*SY)
 #define PADSIZE (SX2*SY2) //パディング後サイズ
 
-#define N 2       //画像の枚数
+#define N 200       //画像の枚数
 #define CHECK_NUM N  //シミュレーション画像をチェックする番号
 
 //#define lam 532e-09  //波長
@@ -255,23 +255,18 @@ int main() {
     clock_t start, lap;
     start = clock();
 
-    //読み込みバイト確認
-    int byte_num;
-    do {
-        cout << "\nバイナリデータを4バイトで読み込み：4を入力\t1バイトで読み込み：1を入力\n";
-        cout << " 1 or 4: "; cin >> byte_num;
-
-    } while (byte_num != 4 && byte_num != 1);
-
-
-    //書き込みバイト確認
-    int byte_numw;
-    do {
-        cout << "\nバイナリデータを4バイトで書き込み：4を入力\t1バイトで書き込み：1を入力\n";
-        cout << " 1 or 4: "; cin >> byte_numw;
-
-    } while (byte_numw != 4 && byte_numw != 1);
-
+    ////読み込みバイト確認
+    //int byte_num;
+    //do {
+    //    cout << "\nバイナリデータを4バイトで読み込み：4を入力\t1バイトで読み込み：1を入力\n";
+    //    cout << " 1 or 4: "; cin >> byte_num;
+    //} while (byte_num != 4 && byte_num != 1);
+    ////書き込みバイト確認
+    //int byte_numw;
+    //do {
+    //    cout << "\nバイナリデータを4バイトで書き込み：4を入力\t1バイトで書き込み：1を入力\n";
+    //    cout << " 1 or 4: "; cin >> byte_numw;
+    //} while (byte_numw != 4 && byte_numw != 1);
 
 
     //画像データを振幅情報(実部)とするか、位相に変換するか確認
@@ -368,9 +363,9 @@ int main() {
         tmp = new My_ComArray_2D(SLMSIZE, SLMX, SLMY);
 
         unsigned char* chRe;
-        int* intRe;
+        //int* intRe;
         chRe = new unsigned char[BX * BY];
-        intRe = new int[BX * BY];
+        //intRe = new int[BX * BY];
 
 
         unsigned char* padRe;
@@ -396,21 +391,23 @@ int main() {
 
 
             //data読み取り
-            if (byte_num == 1) {
-                //1byteで一枚分読み込み
-                ifs.read((char*)chRe, sizeof(unsigned char) * BX * BY);
-                //上下反転
-                invert_img<unsigned char>(chRe, chRe, BX, BY);
+            //1byteで一枚分読み込み
+            ifs.read((char*)chRe, sizeof(unsigned char) * BX * BY);
+            //上下反転
+            invert_img<unsigned char>(chRe, chRe, BX, BY);
 
-            }
-            else {
-                //4byteで一枚分読み込み
-                ifs.read((char*)intRe, sizeof(int) * BX * BY);
-                //上下反転
-                invert_img<int>(intRe, intRe, BX, BY);
-
-
-            }
+            //if (byte_num == 1) {
+            //    //1byteで一枚分読み込み
+            //    ifs.read((char*)chRe, sizeof(unsigned char) * BX * BY);
+            //    //上下反転
+            //    invert_img<unsigned char>(chRe, chRe, BX, BY);
+            //}
+            //else {
+            //    //4byteで一枚分読み込み
+            //    ifs.read((char*)intRe, sizeof(int) * BX * BY);
+            //    //上下反転
+            //    invert_img<int>(intRe, intRe, BX, BY);
+            //}
 
 
             //画像データ確認
@@ -418,20 +415,16 @@ int main() {
 
                 My_Bmp* check;
                 check = new My_Bmp(BX, BY);
-
-                if (byte_num == 1) {
-
+                check->uc_to_img(chRe);
+                check->img_write(oriimg);
+                /*if (byte_num == 1) {
                     check->uc_to_img(chRe);
                     check->img_write(oriimg);
                 }
                 else {
                     check->data_to_ucimg(intRe);
                     check->img_write(oriimg);
-
-                }
-
-
-
+                }*/
                 delete check;
             }
 
@@ -596,9 +589,7 @@ int main() {
             //elimpad2Cmulfft<<<grid2, block >>>(dvbffc, Ldev, SX, SY, dvbffcpd, SX2, SY2);
             //OLD
 
-            //NEW
             Cmulfft<<<(PADSIZE + BS - 1) / BS, BS >>>(dvbffcpd, dvbffcpd, Ldev, PADSIZE);
-            //NEW
 
 
             //角スペクトル
@@ -680,16 +671,16 @@ int main() {
             to_uch(intw, SLMX, chw);
 
             //書き込み
-            if (byte_numw == 1) {
-                //ofs.write((char*)chw, sizeof(unsigned char) * SX);
-                ofs.write((char*)chw, sizeof(unsigned char) * SLMX);
+            ofs.write((char*)chw, sizeof(unsigned char)* SLMX);
 
-            }
-            else {
-                //ofs.write((char*)intw, sizeof(int) * SX);
-                ofs.write((char*)intw, sizeof(int) * SLMX);
-
-            }
+            //if (byte_numw == 1) {
+            //    //ofs.write((char*)chw, sizeof(unsigned char) * SX);
+            //    ofs.write((char*)chw, sizeof(unsigned char) * SLMX);
+            //}
+            //else {
+            //    //ofs.write((char*)intw, sizeof(int) * SX);
+            //    ofs.write((char*)intw, sizeof(int) * SLMX);
+            //}
 
             
 
@@ -700,7 +691,7 @@ int main() {
 
             }
         }
-        delete[]intRe;
+        //delete[]intRe;
         delete[]chRe;
         delete tmp;
         delete Complex;
