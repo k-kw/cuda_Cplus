@@ -69,7 +69,7 @@ float d = 1.87e-06;
 #define SY2 (2*SY)
 #define PADSIZE (SX2*SY2) //パディング後サイズ
 
-#define N 2       //画像の枚数
+#define N 200       //画像の枚数
 #define CHECK_NUM N  //シミュレーション画像をチェックする番号
 
 //#define lam 532e-09  //波長
@@ -285,8 +285,8 @@ __global__ void sum_scldwn_cuda(double* out, int sx, int sy, double* in, int lx,
 string binpath = "../../../../dat/bindat/1byte/m_28_1.dat";
 string simpath = "../../../../dat/simdat/SLM_phase/1byte/lsd/test_sim.dat";
 string oriimg = "./test.bmp";
-string simimg = "./testsim_last.bmp";
-string scaledown = "./scdwn_last.bmp";
+string simimg = "./testsim_last2.bmp";
+string scaledown = "./scdwn_last2.bmp";
 string t = "exp.bmp";
 
 int main() {
