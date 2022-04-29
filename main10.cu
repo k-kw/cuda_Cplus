@@ -69,7 +69,7 @@ float d = 1.87e-06;
 #define SY2 (2*SY)
 #define PADSIZE (SX2*SY2) //パディング後サイズ
 
-#define N 200       //画像の枚数
+#define N 7       //画像の枚数
 #define CHECK_NUM N  //シミュレーション画像をチェックする番号
 
 //#define lam 532e-09  //波長
@@ -144,6 +144,9 @@ dim3 grid((SX2 + blockx - 1) / blockx, (SY2 + blocky - 1) / blocky), block(block
 
 
 //テンプレート関数だけ別にするとうまくいかない
+//テンプレート関数の型まで明示したインスタンスを定義のファイルにおいておけばOK？
+
+//use
 template <class Type>
 __global__ void cunormali(Type* devin, Type* devout, Type max, Type min, int s)
 {
@@ -185,23 +188,24 @@ bool samevalue_sclup(My_ComArray_2D *out, My_ComArray_2D *in) {
     return true;
 }
 
-__global__ void samevl_sclup_cuda(double* out, int outx, int outy, double* in, int inx, int iny) {
-
-    int idx = blockDim.x * blockIdx.x + threadIdx.x;
-    int idy = blockDim.y * blockIdx.y + threadIdx.y;
-
-    int xml, yml, tmpy, tmpx;
-    
-    xml = (outx + inx - 1) / inx;
-    yml = (outy + iny - 1) / iny;
-    tmpy = (int)idy / yml;
-    tmpx = (int)idx / xml;
-
-    if (idx < outx && idy < outy) {
-        out[idy * outx + idx] = in[tmpy * inx + tmpx];
-
-    }
-}
+//
+//__global__ void samevl_sclup_cuda(double* out, int outx, int outy, double* in, int inx, int iny) {
+//
+//    int idx = blockDim.x * blockIdx.x + threadIdx.x;
+//    int idy = blockDim.y * blockIdx.y + threadIdx.y;
+//
+//    int xml, yml, tmpy, tmpx;
+//    
+//    xml = (outx + inx - 1) / inx;
+//    yml = (outy + iny - 1) / iny;
+//    tmpy = (int)idy / yml;
+//    tmpx = (int)idx / xml;
+//
+//    if (idx < outx && idy < outy) {
+//        out[idy * outx + idx] = in[tmpy * inx + tmpx];
+//
+//    }
+//}
 
 //テンプレート
 template <class Type>
@@ -223,23 +227,24 @@ __global__ void samevl_sclup_cuda_anytype2double(double* out, int outx, int outy
     }
 }
 
-__global__ void samevl_sclup_cuda_uc2double(double* out, int outx, int outy, unsigned char* in, int inx, int iny) {
-
-    int idx = blockDim.x * blockIdx.x + threadIdx.x;
-    int idy = blockDim.y * blockIdx.y + threadIdx.y;
-
-    int xml, yml, tmpy, tmpx;
-
-    xml = (outx + inx - 1) / inx;
-    yml = (outy + iny - 1) / iny;
-    tmpy = (int)idy / yml;
-    tmpx = (int)idx / xml;
-
-    if (idx < outx && idy < outy) {
-        out[idy * outx + idx] = (double)in[tmpy * inx + tmpx];
-
-    }
-}
+//
+//__global__ void samevl_sclup_cuda_uc2double(double* out, int outx, int outy, unsigned char* in, int inx, int iny) {
+//
+//    int idx = blockDim.x * blockIdx.x + threadIdx.x;
+//    int idy = blockDim.y * blockIdx.y + threadIdx.y;
+//
+//    int xml, yml, tmpy, tmpx;
+//
+//    xml = (outx + inx - 1) / inx;
+//    yml = (outy + iny - 1) / iny;
+//    tmpy = (int)idy / yml;
+//    tmpx = (int)idx / xml;
+//
+//    if (idx < outx && idy < outy) {
+//        out[idy * outx + idx] = (double)in[tmpy * inx + tmpx];
+//
+//    }
+//}
 
 //sx:lxとsy:lyが同じ比率に限る
 void sum_scldown(double* out, int sx, int sy, double* in, int lx, int ly) {
@@ -283,28 +288,24 @@ __global__ void sum_scldwn_cuda(double* out, int sx, int sy, double* in, int lx,
 
 //ファイルパス
 string binpath = "../../../../dat/bindat/1byte/m_28_1.dat";
-string simpath = "../../../../dat/simdat/SLM_phase/1byte/lsd/test_sim.dat";
+string simpath = "../../../../dat/simdat/SLM_phase/1byte/lsd/test.dat";
 string oriimg = "./test.bmp";
-string simimg = "./testsim_last2.bmp";
-string scaledown = "./scdwn_last2.bmp";
+string simimg = "./testsim_last.bmp";
+string scaledown = "./scdwn_last.bmp";
 string t = "exp.bmp";
 
 int main() {
     clock_t start, lap;
     start = clock();
 
-    ////読み込みバイト確認
-    //int byte_num;
-    //do {
-    //    cout << "\nバイナリデータを4バイトで読み込み：4を入力\t1バイトで読み込み：1を入力\n";
-    //    cout << " 1 or 4: "; cin >> byte_num;
-    //} while (byte_num != 4 && byte_num != 1);
-    ////書き込みバイト確認
-    //int byte_numw;
-    //do {
-    //    cout << "\nバイナリデータを4バイトで書き込み：4を入力\t1バイトで書き込み：1を入力\n";
-    //    cout << " 1 or 4: "; cin >> byte_numw;
-    //} while (byte_numw != 4 && byte_numw != 1);
+    //画像データをそのままリサイズするか、正方形のまま拡大後横にパディングするか
+    int cf_pad;
+    do {
+        cout << "\n正方形画像データをそのまま長方形に拡大する場合：0を入力\n正方形で拡大後パディングして長方形とする場合：1を入力\n";
+        cout << " 0 or 1 : "; cin >> cf_pad;
+
+    } while (cf_pad != 0 && cf_pad != 1);
+
 
 
     //画像データを振幅情報(実部)とするか、位相に変換するか確認
@@ -372,11 +373,6 @@ int main() {
         unsigned char* dvbfucq;
         cudaMalloc((void**)&dvbfucq, sizeof(unsigned char) * SLMSIZE);
 
-
-        /*double* dvbfdq;
-        cudaMalloc((void**)&dvbfdq, sizeof(double) * SLMSIZE);*/
-        //cudaMalloc((void**)&dvbfdq2, sizeof(double) * SLMSIZE);
-
         //デバイス、double メモリ
         double* dvbfd, * dvbfd2;
         cudaMalloc((void**)&dvbfd, sizeof(double) * SIZE);
@@ -437,20 +433,6 @@ int main() {
             //上下反転
             invert_img<unsigned char>(chRe, chRe, BX, BY);
 
-            //if (byte_num == 1) {
-            //    //1byteで一枚分読み込み
-            //    ifs.read((char*)chRe, sizeof(unsigned char) * BX * BY);
-            //    //上下反転
-            //    invert_img<unsigned char>(chRe, chRe, BX, BY);
-            //}
-            //else {
-            //    //4byteで一枚分読み込み
-            //    ifs.read((char*)intRe, sizeof(int) * BX * BY);
-            //    //上下反転
-            //    invert_img<int>(intRe, intRe, BX, BY);
-            //}
-
-
             //画像データ確認
             if (k == N - 1) {
 
@@ -458,14 +440,6 @@ int main() {
                 check = new My_Bmp(BX, BY);
                 check->uc_to_img(chRe);
                 check->img_write(oriimg);
-                /*if (byte_num == 1) {
-                    check->uc_to_img(chRe);
-                    check->img_write(oriimg);
-                }
-                else {
-                    check->data_to_ucimg(intRe);
-                    check->img_write(oriimg);
-                }*/
                 delete check;
             }
 
@@ -476,27 +450,41 @@ int main() {
             /*imshow("View", bin_mat);
             waitKey(0);*/
 
-            //拡大
-            Mat bin_mat_res(short, short, CV_8U);
-            resize(bin_mat, bin_mat_res, Size(short, short));
-            bin_mat.release();
-            /*string resizeimg = "resize.bmp";
-            imwrite(resizeimg, bin_mat_res);
-            imshow("View", bin_mat_res);
-            waitKey(0);*/
+            if (cf_pad == 0) {
+                //正方形から長方形に直接リサイズ
+                Mat bin_mat_res(SLMX, SLMY, CV_8U);
+                resize(bin_mat, bin_mat_res, Size(SLMX, SLMY));
+                bin_mat.release();
 
-            //ゼロ埋めして合わせる
-            Mat bin_mat_pjr(SLMY, SLMX, CV_8U);
-            copyMakeBorder(bin_mat_res, bin_mat_pjr, (int)(SLMY - short) / 2, (int)(SLMY - short) / 2, (int)(SLMX - short) / 2, (int)(SLMX - short) / 2, BORDER_CONSTANT, 0);
-            bin_mat_res.release();
-            /*string padimg = "pad.bmp";
-            imwrite(padimg, bin_mat_pjr);
-            imshow("View", bin_mat_pjr);
-            waitKey(0);*/
+                //拡大したcv::MatをpadReにコピー
+                memcpy(hostbfuc, bin_mat_res.data, SLMSIZE * sizeof(unsigned char));
+                bin_mat_res.release();
+            }
+            else {
+                //正方形から正方形へ拡大後、横をパディングして長方形に
+                //拡大
+                Mat bin_mat_res(short, short, CV_8U);
+                resize(bin_mat, bin_mat_res, Size(short, short));
+                bin_mat.release();
+                /*string resizeimg = "resize.bmp";
+                imwrite(resizeimg, bin_mat_res);
+                imshow("View", bin_mat_res);
+                waitKey(0);*/
 
-            //拡大したcv::MatをpadReにコピー
-            memcpy(hostbfuc, bin_mat_pjr.data, SLMSIZE * sizeof(unsigned char));
-            bin_mat_pjr.release();
+                //ゼロ埋めして合わせる
+                Mat bin_mat_pjr(SLMY, SLMX, CV_8U);
+                copyMakeBorder(bin_mat_res, bin_mat_pjr, (int)(SLMY - short) / 2, (int)(SLMY - short) / 2, (int)(SLMX - short) / 2, (int)(SLMX - short) / 2, BORDER_CONSTANT, 0);
+                bin_mat_res.release();
+                /*string padimg = "pad.bmp";
+                imwrite(padimg, bin_mat_pjr);
+                imshow("View", bin_mat_pjr);
+                waitKey(0);*/
+
+                //拡大したcv::MatをpadReにコピー
+                memcpy(hostbfuc, bin_mat_pjr.data, SLMSIZE * sizeof(unsigned char));
+                bin_mat_pjr.release();
+
+            }
 
             //画像データ確認
             if (k == N - 1) {
@@ -511,77 +499,11 @@ int main() {
 
             }
 
-            
-            //tmp->data_to_ReIm(padRe);
-
-            //NEW
-            //cudaMemcpy(dvbfdq, tmp->Re, sizeof(double) * SLMSIZE, cudaMemcpyHostToDevice);
-            //cudaMemcpy(dvbfdq2, tmp->Im, sizeof(double) * SLMSIZE, cudaMemcpyHostToDevice);
             cudaMemcpy(dvbfucq, hostbfuc, sizeof(unsigned char) * SLMSIZE, cudaMemcpyHostToDevice);
             
-            ////デバッグ
-            //My_ComArray_2D* tmp1;
-            //tmp1 = new My_ComArray_2D(SLMSIZE, SLMX, SLMY);
-            /*cudaMemcpy(tmp1->Re, dvbfdq, sizeof(double) * SLMSIZE, cudaMemcpyDeviceToHost);
-            cudaMemcpy(tmp1->Im, dvbfdq2, sizeof(double) * SLMSIZE, cudaMemcpyDeviceToHost);
-            if (k == CHECK_NUM - 1) {
-                My_Bmp* check;
-                check = new My_Bmp(SLMX, SLMY);
-                check->data_to_ucimg(tmp1->Re);
-                string debug = "debug.bmp";
-                check->img_write(debug);
-                delete check;
-
-            }*/
-
-
-            //samevl_sclup_cuda<<<grid2, block >>>(dvbfd, SX, SY, dvbfdq, SLMX, SLMY);
             samevl_sclup_cuda_anytype2double<unsigned char><<<grid2, block >>>(dvbfd, SX, SY, dvbfucq, SLMX, SLMY);
             cudaMemset(dvbfd2, 0, sizeof(double)* SIZE);
-            //samevl_sclup_cuda<<<grid2, block >>>(dvbfd2, SX, SY, dvbfdq2, SLMX, SLMY);
             
-            //NEW
-            /*cudaMemcpy(Complex->Re, dvbfd, sizeof(double)* SIZE, cudaMemcpyDeviceToHost);
-            cudaMemcpy(Complex->Im, dvbfd2, sizeof(double)* SIZE, cudaMemcpyDeviceToHost);
-            if (k == CHECK_NUM - 1) {
-                My_Bmp* check;
-                check = new My_Bmp(SX, SY);
-                check->data_to_ucimg(Complex ->Re);
-                string debug = "debug.bmp";
-                check->img_write(debug);
-                delete check;
-
-            }*/
-            ////デバッグ
-            //if (k == CHECK_NUM - 1) {
-            //    My_Bmp* check;
-            //    check = new My_Bmp(SLMX, SLMY);
-            //    check->data_to_ucimg(tmp->Re);
-            //    string tmp = "tmp.bmp";
-            //    check->img_write(tmp);
-            //    delete check;
-            //}
-            ////tmpをComplexに拡大,格納
-            //bool cf;
-            //cf = samevalue_sclup(Complex, tmp);
-            //if (cf == false){
-            //    cout << "SLMの解像度に合わせた配列より、計算する配列のサイズが小さいです。" << endl;
-            //    return 0;
-            //
-            //}
-            ////デバッグ
-            //if (k == CHECK_NUM - 1) {
-            //    My_Bmp* check;
-            //    check = new My_Bmp(SX, SY);
-            //    check->data_to_ucimg(Complex->Re);
-            //    string upscl = "upscl.bmp";
-            //    check->img_write(upscl);
-            //    delete check;
-            //}
-            //
-            //cudaMemcpy(dvbfd, Complex->Re, sizeof(double) * SIZE, cudaMemcpyHostToDevice);
-            //cudaMemcpy(dvbfd2, Complex->Im, sizeof(double) * SIZE, cudaMemcpyHostToDevice);
-
             if (ampl_or_phase == 0) {
                 //振幅変調
                 cusetcucomplex<<<(SIZE + BS - 1) / BS, BS >>>(dvbffc, dvbfd, dvbfd2, SIZE);
@@ -592,8 +514,7 @@ int main() {
                 double* Remax, * Remin;
                 Remax = new double;
                 Remin = new double;
-                //*Remax = get_max<double>(tmp->Re, SLMSIZE);
-                //*Remin = get_min<double>(tmp->Re, SLMSIZE);
+                
                 *Remax = (double)get_max<unsigned char>(hostbfuc, SLMSIZE);
                 *Remin = (double)get_min<unsigned char>(hostbfuc, SLMSIZE);
 
@@ -604,9 +525,10 @@ int main() {
             }
 
 
-            //角スペクトル
+            //パディング
             cudaMemset(dvbffcpd, 0, sizeof(cufftComplex) * PADSIZE);
             pad_cufftcom2cufftcom<<<grid2, block >>>(dvbffcpd, SX2, SY2, dvbffc, SX, SY);
+            //角スペクトル
             fft_2D_cuda_dev(SX2, SY2, dvbffcpd);
             Cmulfft<<<(PADSIZE + BS - 1) / BS, BS >>>(dvbffcpd, dvbffcpd, Ha, PADSIZE);
             ifft_2D_cuda_dev(SX2, SY2, dvbffcpd);
@@ -625,60 +547,22 @@ int main() {
                 delete check;
 
             }
-            
-
-            //OLD
-            ////deviceinへ0elim
-            ////elimpad<<<grid2, block >>>(dvbffc, SX, SY, dvbffcpd, SX2, SY2);
-            ////Cmulfft<<<(SIZE + BS - 1) / BS, BS >>>(dvbffc, dvbffc, Ldev, SIZE);
-            //elimpad2Cmulfft<<<grid2, block >>>(dvbffc, Ldev, SX, SY, dvbffcpd, SX2, SY2);
-            //OLD
-
+            //レンズをかける
             Cmulfft<<<(PADSIZE + BS - 1) / BS, BS >>>(dvbffcpd, dvbffcpd, Ldev, PADSIZE);
-
-
             //角スペクトル
-            
-            //OLD
-            //cudaMemset(dvbffcpd, 0, sizeof(cufftComplex) * PADSIZE);
-            //pad_cufftcom2cufftcom<<<grid2, block >>>(dvbffcpd, SX2, SY2, dvbffc, SX, SY);
-            //OLD
-
             fft_2D_cuda_dev(SX2, SY2, dvbffcpd);
             Cmulfft<<<(PADSIZE + BS - 1) / BS, BS >>>(dvbffcpd, dvbffcpd, Hb, PADSIZE);
             ifft_2D_cuda_dev(SX2, SY2, dvbffcpd);
             normfft << <(PADSIZE + BS - 1) / BS, BS >> > (dvbffcpd, SX2, SY2);
-
-            /*elimpad<<<grid2, block >>>(dvbffc, SX, SY, dvbffcpd, SX2, SY2);
-            cucompower<<<(SIZE + BS - 1) / BS, BS >>>(dvbfd, dvbffc, SIZE);*/
-
+            //複素振幅出力
             elimpadcucompower<<<grid2, block >>>(dvbfd, SX, SY, dvbffcpd, SX2, SY2);
-
-            ////NEW
-            ////グラボ側で総和をとって、サイズダウン
-            //double* powdwn;
-            //cudaMalloc((void**)&powdwn, sizeof(double) * SLMSIZE);
-            //cudaMemset(powdwn, 0, sizeof(double) * SLMSIZE);
-            //sum_scldwn_cuda<<<grid2, block >>>(powdwn, SLMX, SLMY, dvbfd, SX, SY);
-            //cudaMemcpy(scldwn, powdwn, sizeof(double) * SLMSIZE, cudaMemcpyDeviceToHost);
-            ////デバッグ
-            //if (k == CHECK_NUM - 1) {
-            //    My_Bmp* check;
-            //    check = new My_Bmp(SLMX, SLMY);
-            //    check->data_to_ucimg(scldwn);
-            //    string dwncuda = "scldwncuda.bmp";
-            //    check->img_write(dwncuda);
-            //    delete check;
-            //}
-            ////NEW
-
+            //ホストへ
             cudaMemcpy(hostbfd, dvbfd, sizeof(double) * SIZE, cudaMemcpyDeviceToHost);
 
             if (k == CHECK_NUM - 1) {
 
                 My_Bmp* check;
                 check = new My_Bmp(SX, SY);
-
                 check->data_to_ucimg(hostbfd);
                 check->img_write(simimg);
                 delete check;
@@ -691,7 +575,8 @@ int main() {
                 cout << "SLM解像度とシミュレーション配列は縦横同じ比率にしてください。\n";
                 return 0;
             }
-            memset(scldwn, 0, sizeof(double) * SLMSIZE);
+            //memset(scldwn, 0, sizeof(double) * SLMSIZE);
+            //近くの値を足しながら縮小、(0で初期化こみ)
             sum_scldown(scldwn, SLMX, SLMY, hostbfd, SX, SY);
             //デバッグ
             if (k == CHECK_NUM - 1) {
@@ -716,17 +601,6 @@ int main() {
 
             //書き込み
             ofs.write((char*)chw, sizeof(unsigned char)* SLMX);
-
-            //if (byte_numw == 1) {
-            //    //ofs.write((char*)chw, sizeof(unsigned char) * SX);
-            //    ofs.write((char*)chw, sizeof(unsigned char) * SLMX);
-            //}
-            //else {
-            //    //ofs.write((char*)intw, sizeof(int) * SX);
-            //    ofs.write((char*)intw, sizeof(int) * SLMX);
-            //}
-
-            
 
             if ((k + 1) % 100 == 0) {
                 cout << "-----------------------------------" << k + 1 << "--------------------------------------\n";

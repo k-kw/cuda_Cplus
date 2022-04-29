@@ -37,7 +37,20 @@ using namespace std;
 
 //ä÷êîåQ
 
-//using
+////template of under function
+//template <class Type>
+//__global__ void cusetcucomplex(cuComplex* com, Type* Re, Type* Im, int size)
+//{
+//
+//    int idx = blockDim.x * blockIdx.x + threadIdx.x;
+//
+//    if (idx < size) {
+//        com[idx] = make_cuComplex((float)Re[idx], (float)Im[idx]);
+//    }
+//}
+
+
+//use
 __global__ void cusetcucomplex(cuComplex* com, double* Re, double* Im, int size)
 {
 
@@ -48,7 +61,10 @@ __global__ void cusetcucomplex(cuComplex* com, double* Re, double* Im, int size)
     }
 }
 
-//using
+
+
+
+//use
 __global__ void normfft(cufftComplex* dev, int x, int y)
 {
     int idx = blockDim.x * blockIdx.x + threadIdx.x;
@@ -59,7 +75,7 @@ __global__ void normfft(cufftComplex* dev, int x, int y)
 }
 
 
-//using
+//use
 void fft_2D_cuda_dev(int x, int y, cufftComplex* dev)
 {
     cufftHandle plan;
@@ -71,7 +87,7 @@ void fft_2D_cuda_dev(int x, int y, cufftComplex* dev)
     cufftDestroy(plan);
 }
 
-//using
+//use
 void ifft_2D_cuda_dev(int x, int y, cufftComplex* dev)
 {
     cufftHandle plan;
@@ -104,7 +120,7 @@ __global__ void Hcudaf(float* Re, float* Im, int x, int y, float u, float v, flo
     }
 }
 
-
+//use
 __global__ void HcudacuCom(cuComplex* H, int x, int y, float z, float d, float lam)
 {
     int idx = blockDim.x * blockIdx.x + threadIdx.x;
@@ -141,6 +157,7 @@ __global__ void  shiftf(float* ore, float* oim, float* re, float* im, int x, int
     }
 }
 
+//use
 __global__ void shiftCom(cuComplex* out, cuComplex* in, int x, int y)
 {
     int idx = blockDim.x * blockIdx.x + threadIdx.x;
@@ -190,7 +207,7 @@ __global__ void muldoublecomcufftcom(cufftComplex* out, double* re, double* im, 
 }
 
 
-//using
+//use
 __global__ void Cmulfft(cuComplex* out, cuComplex* fin, cuComplex* in, int s)
 {
     int idx = blockDim.x * blockIdx.x + threadIdx.x;
@@ -209,7 +226,7 @@ __global__ void Cmulfft(cuComplex* out, cuComplex* fin, cuComplex* in, int s)
 
 }
 
-//using
+//use
 __global__ void pad_cufftcom2cufftcom(cufftComplex* out, int lx, int ly, cufftComplex* in, int sx, int sy)
 {
     int idx = blockDim.x * blockIdx.x + threadIdx.x;
@@ -221,7 +238,6 @@ __global__ void pad_cufftcom2cufftcom(cufftComplex* out, int lx, int ly, cufftCo
 
 }
 
-//using
 __global__ void elimpad(cufftComplex* out, int sx, int sy, cufftComplex* in, int lx, int ly)
 {
     int idx = blockDim.x * blockIdx.x + threadIdx.x;
@@ -232,7 +248,6 @@ __global__ void elimpad(cufftComplex* out, int sx, int sy, cufftComplex* in, int
     }
 }
 
-//using
 __global__ void elimpad2Cmulfft(cuComplex* outmlt, cuComplex* opponent, 
     int sx, int sy, cuComplex* in, int lx, int ly)
 {
@@ -268,6 +283,7 @@ void Hcudaf_shiftf(float* devReH, float* devImH, int x, int y, float d, float z,
     cudaFree(ImH);
 }
 
+//use
 void Hcudashiftcom(cuComplex* dev, int x, int y, float z, float d, float lamda, dim3 grid, dim3 block) {
     cuComplex* tmp;
     cudaMalloc((void**)&tmp, sizeof(cuComplex) * x * y);
@@ -291,7 +307,7 @@ __global__ void cucompower(double* power, cuComplex* dev, int s)
     }
 }
 
-//using
+//use
 __global__ void elimpadcucompower(double* power ,int sx, int sy, cuComplex* dev, int lx, int ly)
 {
     int idx = blockDim.x * blockIdx.x + threadIdx.x;
@@ -308,7 +324,7 @@ __global__ void elimpadcucompower(double* power ,int sx, int sy, cuComplex* dev,
 
 
 
-//using
+//use
 __global__ void cunormaliphase(cuComplex* out, double* normali, int s)
 {
     int idx = blockDim.x * blockIdx.x + threadIdx.x;
@@ -320,4 +336,5 @@ __global__ void cunormaliphase(cuComplex* out, double* normali, int s)
     }
 
 }
+
 

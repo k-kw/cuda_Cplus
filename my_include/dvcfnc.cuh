@@ -64,4 +64,3 @@ __global__ void elimpadcucompower(double* power, int sx, int sy, cuComplex* dev,
 __global__ void cunormaliphase(cuComplex* out, double* normali, int s);
 
 
-
