@@ -69,7 +69,7 @@ float d = 1.87e-06;
 #define SY2 (2*SY)
 #define PADSIZE (SX2*SY2) //パディング後サイズ
 
-#define N 7       //画像の枚数
+#define N 70000       //画像の枚数
 #define CHECK_NUM N  //シミュレーション画像をチェックする番号
 
 //#define lam 532e-09  //波長
@@ -287,12 +287,14 @@ __global__ void sum_scldwn_cuda(double* out, int sx, int sy, double* in, int lx,
 
 
 //ファイルパス
-string binpath = "../../../../dat/bindat/1byte/m_28_1.dat";
-string simpath = "../../../../dat/simdat/SLM_phase/1byte/lsd/test.dat";
+string binpath = "../../../../dat/bindat/1byte/fm_28_1.dat";
+string simpath = "../../../../dat/simdat/SLM_phase/1byte/lsd/fm/fm_4cm_4cm_3.3mm_notpad_4096x2400_samevalue_sclup_to8192x4800_sim.dat";
 string oriimg = "./test.bmp";
 string simimg = "./testsim_last.bmp";
 string scaledown = "./scdwn_last.bmp";
-string t = "exp.bmp";
+string oriimgexp = "exp.bmp";
+string debug_bflens = "bfrlens.bmp";
+
 
 int main() {
     clock_t start, lap;
@@ -493,7 +495,7 @@ int main() {
                 check = new My_Bmp(SLMX, SLMY);
 
                 check->uc_to_img(hostbfuc);
-                check->img_write(t);
+                check->img_write(oriimgexp);
 
                 delete check;
 
@@ -542,8 +544,7 @@ int main() {
                 check = new My_Bmp(SX, SY);
 
                 check->data_to_ucimg(hostbfd);
-                string dbg = "bfrlens.bmp";
-                check->img_write(dbg);
+                check->img_write(debug_bflens);
                 delete check;
 
             }
