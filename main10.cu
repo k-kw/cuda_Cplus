@@ -288,7 +288,7 @@ __global__ void sum_scldwn_cuda(double* out, int sx, int sy, double* in, int lx,
 
 //ファイルパス
 string binpath = "../../../../dat/bindat/1byte/fm_28_1.dat";
-string simpath = "../../../../dat/simdat/SLM_phase/1byte/lsd/fm/fm_4cm_4cm_3.3mm_notpad_4096x2400_samevalue_sclup_to8192x4800_sim.dat";
+string simpath = "../../../../dat/simdat/SLM_phase/1byte/lsd/fm/test.dat";
 string oriimg = "./test.bmp";
 string simimg = "./testsim_last.bmp";
 string scaledown = "./scdwn_last.bmp";
