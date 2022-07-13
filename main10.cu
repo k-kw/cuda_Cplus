@@ -69,7 +69,7 @@ float d = 1.87e-06;
 #define SY2 (2*SY)
 #define PADSIZE (SX2*SY2) //パディング後サイズ
 
-#define N 70000       //画像の枚数
+#define N 1       //画像の枚数
 #define CHECK_NUM N  //シミュレーション画像をチェックする番号
 
 //#define lam 532e-09  //波長
@@ -89,7 +89,7 @@ float lamda = 532e-09;
 //伝搬距離と焦点距離
 float a = 0.04;
 //float b = 0.03;
-float b = 0.04;
+float b = 0.0033;
 //float f = 0.001;
 //フライアイレンズのデータシートより
 float f = 0.0033;
